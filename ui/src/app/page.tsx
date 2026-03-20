@@ -1,65 +1,114 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { fetchConversations } from "@/lib/api";
+import { useSse } from "@/hooks/use-sse";
+import type { ConversationSummary } from "@/lib/types";
+
+const PAGE_SIZE = 20;
+
+export default function ConversationListPage() {
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [filter, setFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async (newOffset: number) => {
+    setLoading(true);
+    try {
+      const data = await fetchConversations(PAGE_SIZE, newOffset);
+      setConversations(newOffset === 0 ? data.conversations : (prev) => [...prev, ...data.conversations]);
+      setTotal(data.total);
+      setOffset(newOffset);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    load(0);
+  }, [load]);
+
+  // Real-time updates: re-fetch on any event
+  useSse({
+    onEvent: () => {
+      load(0);
+    },
+  });
+
+  const filtered = filter
+    ? conversations.filter((c) => c.conversation.toLowerCase().includes(filter.toLowerCase()))
+    : conversations;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div>
+      <div className="flex items-center gap-4 mb-6">
+        <h1 className="text-2xl font-bold">Conversations</h1>
+        <span className="text-zinc-500 text-sm">{total} total</span>
+      </div>
+
+      <input
+        type="text"
+        placeholder="Filter by conversation ID..."
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        className="w-full mb-4 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+
+      <div className="border border-zinc-800 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-zinc-900 text-zinc-400 text-left">
+              <th className="px-4 py-2">Conversation</th>
+              <th className="px-4 py-2 text-center">Messages</th>
+              <th className="px-4 py-2 text-center">Tasks</th>
+              <th className="px-4 py-2 text-right">Last Activity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((conv) => (
+              <tr
+                key={conv.conversation}
+                className="border-t border-zinc-800 hover:bg-zinc-900/50 transition-colors"
+              >
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/conversation/${conv.conversation}`}
+                    className="text-blue-400 hover:underline font-mono text-xs"
+                  >
+                    {conv.conversation.slice(0, 8)}...
+                  </Link>
+                </td>
+                <td className="px-4 py-3 text-center text-zinc-300">{conv.message_count}</td>
+                <td className="px-4 py-3 text-center text-zinc-300">{conv.task_count}</td>
+                <td className="px-4 py-3 text-right text-zinc-500 text-xs">
+                  {new Date(conv.last_activity).toLocaleString()}
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && !loading && (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
+                  {filter ? "No matching conversations" : "No conversations yet"}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {conversations.length < total && (
+        <button
+          onClick={() => load(offset + PAGE_SIZE)}
+          disabled={loading}
+          className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm text-zinc-300 disabled:opacity-50"
+        >
+          {loading ? "Loading..." : "Load more"}
+        </button>
+      )}
     </div>
   );
 }

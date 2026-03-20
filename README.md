@@ -59,13 +59,12 @@ cd ~/repos/agentic-workflow
 ./setup.sh
 ```
 
-The setup script symlinks skills into `~/.claude/skills/`, copies config files, and installs MCP bridge dependencies.
-
-### Register MCP Server with Claude Code
-
-```bash
-claude mcp add agentic-bridge -- node ~/repos/agentic-workflow/mcp-bridge/dist/mcp.js
-```
+The setup script:
+- Symlinks skills into `~/.claude/skills/`
+- Copies config files (settings, MCP)
+- Installs and builds the MCP bridge
+- Registers `agentic-bridge` MCP server with Claude Code and Codex
+- Adds plugin marketplaces and installs plugins (github, superpowers, compound-engineering, playwright)
 
 ### Run the REST API (optional)
 

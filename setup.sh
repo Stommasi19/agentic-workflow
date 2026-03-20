@@ -77,17 +77,89 @@ else
   echo "  bootstrap: linked"
 fi
 
-# --- MCP Bridge Dependencies ---
+# --- MCP Bridge: Install, Build, Register ---
 echo ""
-echo "Installing MCP bridge dependencies..."
+echo "Installing MCP bridge..."
 
-if [ -f "$SCRIPT_DIR/mcp-bridge/package.json" ]; then
-  (cd "$SCRIPT_DIR/mcp-bridge" && npm install)
-  echo "  MCP bridge: dependencies installed"
-  echo "  Build with: cd mcp-bridge && npm run build"
-  echo "  Run with:   cd mcp-bridge && npm start"
+BRIDGE_DIR="$SCRIPT_DIR/mcp-bridge"
+
+if [ -f "$BRIDGE_DIR/package.json" ]; then
+  (cd "$BRIDGE_DIR" && npm install && npm run build)
+  echo "  MCP bridge: built successfully"
 else
   echo "  MCP bridge: package.json not found, skipping"
+fi
+
+# Register with Claude Code
+echo ""
+echo "Registering MCP bridge with Claude Code..."
+if command -v claude &>/dev/null; then
+  if claude mcp list 2>&1 | grep -q "agentic-bridge"; then
+    echo "  agentic-bridge: already registered in Claude Code"
+  else
+    claude mcp add agentic-bridge -- node "$BRIDGE_DIR/dist/mcp.js"
+    echo "  agentic-bridge: registered in Claude Code"
+  fi
+else
+  echo "  claude CLI not found, skipping Claude Code registration"
+fi
+
+# Register with Codex
+echo ""
+echo "Registering MCP bridge with Codex..."
+if command -v codex &>/dev/null; then
+  if codex mcp list 2>&1 | grep -q "agentic-bridge"; then
+    echo "  agentic-bridge: already registered in Codex"
+  else
+    codex mcp add agentic-bridge -- node "$BRIDGE_DIR/dist/mcp.js"
+    echo "  agentic-bridge: registered in Codex"
+  fi
+else
+  echo "  codex CLI not found, skipping Codex registration"
+fi
+
+# --- Claude Code Plugins ---
+echo ""
+echo "Installing Claude Code plugins..."
+
+if command -v claude &>/dev/null; then
+  # Marketplaces
+  MARKETPLACES=(
+    "anthropics/claude-plugins-official"
+    "VoltAgent/awesome-claude-code-subagents"
+    "EveryInc/compound-engineering-plugin"
+  )
+
+  for repo in "${MARKETPLACES[@]}"; do
+    name=$(basename "$repo")
+    if claude plugins marketplace list 2>&1 | grep -q "$name"; then
+      echo "  marketplace $name: already added"
+    else
+      claude plugins marketplace add "github:$repo" 2>&1 && \
+        echo "  marketplace $name: added" || \
+        echo "  marketplace $name: failed to add (non-fatal)"
+    fi
+  done
+
+  # Plugins
+  PLUGINS=(
+    "github@claude-plugins-official"
+    "superpowers@claude-plugins-official"
+    "compound-engineering@compound-engineering-plugin"
+    "playwright@claude-plugins-official"
+  )
+
+  for plugin in "${PLUGINS[@]}"; do
+    if claude plugins list 2>&1 | grep -q "$plugin"; then
+      echo "  plugin $plugin: already installed"
+    else
+      claude plugins install "$plugin" 2>&1 && \
+        echo "  plugin $plugin: installed" || \
+        echo "  plugin $plugin: failed to install (non-fatal)"
+    fi
+  done
+else
+  echo "  claude CLI not found, skipping plugin installation"
 fi
 
 echo ""
@@ -95,9 +167,6 @@ echo "=== Setup Complete ==="
 echo ""
 echo "Skills installed:   review, postReview, addressReview, enhancePrompt, bootstrap"
 echo "Config location:    $CLAUDE_DIR/"
-echo "MCP bridge:         $SCRIPT_DIR/mcp-bridge/"
-echo ""
-echo "Plugin marketplaces to install manually:"
-echo "  - claude-plugins-official (Anthropic official)"
-echo "  - voltagent-subagents (subagent catalog)"
-echo "  - compound-engineering-plugin (EveryInc/compound-engineering-plugin)"
+echo "MCP bridge:         $BRIDGE_DIR/"
+echo "MCP registered:     Claude Code + Codex (agentic-bridge)"
+echo "Plugins:            github, superpowers, compound-engineering, playwright"

@@ -79,8 +79,8 @@ describe("getConversations", () => {
     const newer = randomUUID();
 
     sendContext(db, { conversation: older, sender: "a", recipient: "b", payload: "old" });
-    // Small delay to ensure ordering (timestamps have ms precision)
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2);
+    // Delay to ensure distinct ISO timestamps for ordering
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
     sendContext(db, { conversation: newer, sender: "a", recipient: "b", payload: "new" });
 
     const result = getConversations(db, { limit: 10, offset: 0 });

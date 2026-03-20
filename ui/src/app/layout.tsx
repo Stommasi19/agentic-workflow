@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "Bridge UI — Agent Conversations",
@@ -12,13 +15,22 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} bg-zinc-950 text-zinc-100 min-h-screen`}>
-        <header className="border-b border-zinc-800 px-6 py-3">
-          <a href="/" className="text-lg font-semibold text-zinc-100 hover:text-white">
-            Bridge UI
+      <body className={`${spaceGrotesk.className} bg-bg text-text-primary min-h-screen`}>
+        <header className="flex items-center justify-between px-[var(--s6)] py-[var(--s4)] border-b border-border bg-bg sticky top-0 z-[100]">
+          <a href="/" className="flex items-center gap-[var(--s3)] no-underline text-text-primary">
+            <div className="w-8 h-8 bg-accent-dim border border-accent-border rounded-sm flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-accent">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </div>
+            <span className="text-lg font-semibold tracking-tight">Bridge UI</span>
           </a>
+          <div className="flex items-center gap-[var(--s2)]">
+            <div className="w-2 h-2 rounded-full bg-[#22C55E] shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+            <span className="text-xs font-medium tracking-wide text-text-secondary">Connected to :3100</span>
+          </div>
         </header>
-        <main className="max-w-7xl mx-auto px-6 py-6">{children}</main>
+        <main>{children}</main>
       </body>
     </html>
   );

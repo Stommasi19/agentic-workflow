@@ -52,7 +52,18 @@ Read files whose names or paths suggest relevance to the user's prompt topic. Al
 
 Use judgment — a prompt about pricing doesn't need the testing strategy doc.
 
-### 3. Output the enhanced prompt
+### 3. Evaluate Codex dialogue value
+
+Before producing output, assess whether the task would benefit from a Codex consultation via the MCP bridge (`agentic-bridge`). Include a dialogue recommendation **only** when at least one of these applies:
+
+- **Cross-domain task** — the prompt spans areas where a second agent working in parallel would reduce total time (e.g., frontend + backend, infra + application code)
+- **Second opinion valuable** — architecture decisions, security-sensitive changes, or unfamiliar codebases where an independent review adds confidence
+- **Parallel research** — the task involves investigating multiple approaches or technologies that could be explored simultaneously
+- **Verification needed** — the result should be validated by a separate agent (e.g., "implement X, then have Codex try to break it")
+
+If none apply, skip the dialogue section entirely — don't force it.
+
+### 4. Output the enhanced prompt
 
 ```
 ## Enhanced Prompt
@@ -66,7 +77,26 @@ Use judgment — a prompt about pricing doesn't need the testing strategy doc.
 <rewritten version of the prompt with all context woven in, specific and actionable>
 ```
 
-### 4. Confirm before proceeding
+If step 3 identified dialogue value, append:
+
+```
+## Codex Dialogue Recommended
+
+**Why:** <one sentence — which criterion triggered this>
+
+**What to ask Codex:**
+<specific prompt to send via agentic-bridge assign_task or send_context>
+
+**Expected value:** <what the response would add — a review, alternative approach, parallel implementation, etc.>
+
+**How to initiate:**
+  In a Codex session: "Check your unread messages on the agentic-bridge"
+  Or manually: assign_task with conversation UUID, domain, and the prompt above
+```
+
+If step 3 found no dialogue value, do not include this section.
+
+### 5. Confirm before proceeding
 
 Ask: "Should I proceed with this, or adjust anything?"
 

@@ -8,9 +8,10 @@ import { getConversations } from "../src/application/services/get-conversations.
 import { randomUUID } from "node:crypto";
 
 let db: DbClient;
+let raw: InstanceType<typeof Database>;
 
 beforeEach(() => {
-  const raw = new Database(":memory:");
+  raw = new Database(":memory:");
   raw.pragma("journal_mode = WAL");
   raw.exec(MIGRATIONS);
   db = createDbClient(raw);
@@ -79,9 +80,11 @@ describe("getConversations", () => {
     const newer = randomUUID();
 
     sendContext(db, { conversation: older, sender: "a", recipient: "b", payload: "old" });
-    // Delay to ensure distinct ISO timestamps for ordering
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
     sendContext(db, { conversation: newer, sender: "a", recipient: "b", payload: "new" });
+
+    // Force distinct timestamps to avoid wall-clock flakiness
+    raw.prepare("UPDATE messages SET created_at = '2025-01-01T00:00:00.000Z' WHERE conversation = ?").run(older);
+    raw.prepare("UPDATE messages SET created_at = '2025-01-02T00:00:00.000Z' WHERE conversation = ?").run(newer);
 
     const result = getConversations(db, { limit: 10, offset: 0 });
     expect(result.ok).toBe(true);

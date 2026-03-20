@@ -333,3 +333,14 @@ CLAUDE.md                       (add design skills to tables and architecture)
 ├── impl-<screen>-<viewport>.png (implementation screenshots)
 └── diff-<screen>-<viewport>.png (diff images from verification)
 ```
+
+## Open Questions for Planning
+
+Advisory items from spec review — not blocking, but need resolution during implementation planning:
+
+1. **`/design-refine` dispatch mechanics** — how does it invoke Impeccable skills? Via `Skill` tool, `Agent` tool with SKILL.md content, or inlined instructions?
+2. **`/design-mockup` allowed-tools** — depends on Superpowers brainstorm visual companion; needs correct tool permissions in SKILL.md frontmatter
+3. **`/design-verify` target detection** — heuristic for web vs iOS (e.g., presence of `Package.swift`/`.xcodeproj` for iOS, `package.json` with Next.js/React for web)
+4. **`/design-implement` screen selection** — should take a `<screen-name>` argument when multiple mockups exist
+5. **Impeccable installation strategy** — vendor into this repo, add to `setup.sh`, or leave as manual prerequisite?
+6. **Generated token file placement** — root is fine for single-target projects; monorepos may need platform-specific subdirectories

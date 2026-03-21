@@ -494,6 +494,107 @@ The existing `BridgeEvent` emits minimal data (`{ id, conversation }`). The `not
 
 **Choice: Option 1.** The EventBus already receives the full row from the service layer — just pass it through instead of extracting only `id` and `conversation`. This is a small change to `events.ts` types and the emit calls in controllers.
 
+## UI Changes
+
+The conversation dashboard needs updates to surface worker activity and the new `working_dir` field.
+
+### Conversation List (`ui/src/app/page.tsx`)
+
+No structural changes. Worker conversations appear naturally — they have a `codex-worker-*` participant. The existing `ConversationCard` shows participants, message/task counts, and timestamps, which is sufficient.
+
+### Conversation Detail (`ui/src/app/conversation/[id]/page.tsx`)
+
+**Timeline updates (`ui/src/components/vertical-timeline.tsx`):**
+- Task cards gain a `working_dir` field displayed as a monospace path badge (e.g., `~/repos/foo`) when present
+- Task cards show `assigned_to` with a visual distinction for worker IDs (e.g., `codex-worker-a3f2` gets a robot/worker icon or "worker" badge)
+
+**Diagram updates (`ui/src/lib/diagrams.ts`):**
+- `buildDirectedGraph()` — Worker agent nodes (IDs matching `codex-worker-*`) get a distinct shape or color to differentiate from interactive agents
+- `buildSequenceDiagram()` — No change needed, worker messages flow through naturally
+
+### Types (`ui/src/lib/types.ts`)
+
+- `Task` interface gains `working_dir: string | null`
+
+### API Client (`ui/src/lib/api.ts`)
+
+No changes — the existing `fetchTasks()` returns whatever the API returns. The new `working_dir` field flows through automatically from the REST response.
+
+### SSE Hook (`ui/src/hooks/use-sse.ts`)
+
+No changes needed. The hook already listens for all event types. The enriched `BridgeEvent` data (full rows instead of `{id, conversation}`) is consumed by the page components that re-fetch on events — they don't parse the event data directly.
+
+## Documentation Updates
+
+All planning docs that reference the bridge, tasks schema, or deployment need updates.
+
+### `planning/API_CONTRACT.md`
+
+Add:
+- `GET /messages/peek` endpoint (full request/response/error/side-effects documentation matching existing format)
+- `working_dir` and `sender` fields to `POST /tasks/assign` request body table
+- `working_dir` field to task response schemas (GET /tasks/:id, GET /tasks/conversation/:id, POST /tasks/assign response)
+- `peek_unread` MCP tool section
+- `working_dir` and `sender` params added to `assign_task` MCP tool section
+
+### `planning/ERD.md`
+
+Add:
+- `working_dir` column to the `tasks` table documentation (TEXT, nullable, absolute path for worker cwd)
+- Note that `sender` on task messages is now dynamic (from `assign_task` input, not hardcoded `"system"`)
+
+### `planning/ARCHITECTURE.md`
+
+Add:
+- Worker orchestrator as a new subsystem in the system overview
+- `worker.ts` and `notify.ts` entry points in the directory tree
+- Worker poll loop in the data flow diagram
+- Desktop notification flow (SSE → osascript)
+- Claude Code hook flow (PostToolUse → peek → notification)
+- Updated skill pipeline showing how `assign_task` with `working_dir` initiates worker dialogue
+
+### `planning/DEPLOYMENT.md`
+
+Add:
+- Worker process in the "Building for Production" section (`dist/worker.js` entry point)
+- `notify.ts` entry point
+- Worker identity file at `~/.agentic-workflow/worker-id`
+- New environment variables table (WORKER_MAX_CONCURRENT, etc.)
+- Updated `start.sh` description showing 4 processes instead of 2
+- Hook script setup (`check-bridge.sh` symlink)
+
+### `planning/LOCAL_DEV.md`
+
+Add:
+- Worker process in the development startup section
+- Desktop notifications as part of the dev environment
+- How to test the worker locally (assign a task, watch it respond)
+- Troubleshooting: worker ID file location, how to reset
+
+### `planning/TESTING.md`
+
+Add:
+- Worker unit test descriptions (state machine, backoff, queue)
+- Worker integration test descriptions (mock Codex, round-trip)
+- Peek service tests
+- Note about `eventsource` test mocking for notify.ts
+
+### `CLAUDE.md`
+
+Add:
+- Worker entry point in the Architecture section directory tree
+- `notify.ts` and `check-bridge.sh` in the directory tree
+- `working_dir` mention in the Key Patterns section where tasks are discussed
+- Worker environment variables in the Commands section
+- Updated `start.sh` description
+
+### `skills/enhancePrompt/SKILL.md`
+
+Update step 3 ("Evaluate Codex dialogue value"):
+- Remove manual instruction to tell Codex "Check your unread messages" — this is now automated
+- Update "How to initiate" to reflect the automated worker: "Assign a task via `assign_task` with `working_dir` and `assigned_to` set to the worker ID. The worker will pick it up automatically."
+- Add note about checking worker status via the UI dashboard
+
 ## Testing Strategy
 
 ### Unit tests
@@ -524,7 +625,7 @@ The existing `BridgeEvent` emits minimal data (`{ id, conversation }`). The `not
 | `mcp-bridge/src/application/services/peek-unread.ts` | Peek service — count without marking read |
 | `mcp-bridge/src/routes/peek.ts` | REST route for `GET /messages/peek` |
 
-### Modified files
+### Modified files — Bridge
 
 | File | Change |
 |------|--------|
@@ -538,7 +639,31 @@ The existing `BridgeEvent` emits minimal data (`{ id, conversation }`). The `not
 | `mcp-bridge/src/application/services/assign-task.ts` | Accept `working_dir` and `sender` in `AssignTaskInput`, set message sender to `input.sender ?? "system"` |
 | `mcp-bridge/src/application/events.ts` | Enrich `BridgeEvent` data to include full message/task rows (not just id+conversation) |
 | `mcp-bridge/package.json` | Add `eventsource` and `@types/eventsource` deps, add `worker` script |
+
+### Modified files — UI
+
+| File | Change |
+|------|--------|
+| `ui/src/lib/types.ts` | Add `working_dir: string \| null` to `Task` interface |
+| `ui/src/components/vertical-timeline.tsx` | Show `working_dir` path badge on task cards, worker badge for `codex-worker-*` assignees |
+| `ui/src/lib/diagrams.ts` | Distinct node styling for `codex-worker-*` agents in directed graph |
+
+### Modified files — Scripts
+
+| File | Change |
+|------|--------|
 | `start.sh` | Add worker + notify processes, bridge health wait |
 | `setup.sh` | Symlink `check-bridge.sh` to `~/.claude/scripts/`, add `rm -f mcp-bridge/bridge.db` before build |
-| `planning/API_CONTRACT.md` | Document peek endpoint, working_dir field, sender field on assign_task |
-| `planning/ERD.md` | Document working_dir column |
+
+### Modified files — Documentation
+
+| File | Change |
+|------|--------|
+| `planning/API_CONTRACT.md` | Document peek endpoint, working_dir field, sender field on assign_task, peek_unread MCP tool |
+| `planning/ERD.md` | Document working_dir column, dynamic sender on task messages |
+| `planning/ARCHITECTURE.md` | Worker subsystem, notify.ts, hook flow, updated data flow diagram |
+| `planning/DEPLOYMENT.md` | Worker entry point, notify entry point, worker-id file, new env vars, updated start.sh |
+| `planning/LOCAL_DEV.md` | Worker in dev startup, notification setup, local testing guide |
+| `planning/TESTING.md` | Worker test descriptions, peek service tests, notify mock strategy |
+| `CLAUDE.md` | Worker in directory tree, worker env vars, updated start.sh description |
+| `skills/enhancePrompt/SKILL.md` | Update Codex dialogue section to reflect automated worker |

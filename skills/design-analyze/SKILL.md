@@ -3,7 +3,7 @@ name: design-analyze
 description: Run Dembrandt on reference site URLs to extract design tokens (colors, typography, spacing) as W3C DTCG JSON. Merges multiple sites, resolves conflicts by frequency/prominence, and writes design-tokens.json.
 argument-hint: <url> [url2...]
 disable-model-invocation: true
-allowed-tools: Bash(npx dembrandt *), Bash(git *), Read, Write, Glob
+allowed-tools: Bash(npx dembrandt *), Bash(git *), Read, Write, Glob, AskUserQuestion
 ---
 
 > **Agentic Workflow** — 21 skills available. Run any as `/<name>`.
@@ -83,6 +83,8 @@ Before proceeding, load existing design context:
 If none of these files exist and this skill requires design context to function, advise:
 > "No design language found. Run `/design-analyze <url>` to extract tokens from a reference site, then `/design-language` to define brand personality."
 
+> **Note:** This skill creates design context — the preamble checks above are informational only. Missing `.impeccable.md` or `design-tokens.json` is expected on first run.
+
 ---
 
 # Design Analyze — Extract Design Tokens from Reference Sites
@@ -97,7 +99,14 @@ If no URLs provided:
 > "Usage: `/design-analyze <url> [url2...]`
 > Example: `/design-analyze https://linear.app https://vercel.com`"
 
-## Step 2: Run Dembrandt on Each URL
+## Step 2: Validate URLs
+
+Validate that each argument is a URL (starts with `http://` or `https://`). Reject arguments that don't match a URL pattern or contain shell metacharacters (`;`, `&`, `|`, `` ` ``, `$`, `(`, `)`).
+
+If any argument fails validation:
+> "Invalid URL: `<argument>`. URLs must start with `http://` or `https://` and must not contain shell metacharacters."
+
+## Step 3: Run Dembrandt on Each URL
 
 For each URL, run:
 
@@ -113,7 +122,7 @@ npx dembrandt <url> --dtcg --dark-mode --save-output
 
 Collect all output files. Dembrandt saves JSON files with the extracted tokens.
 
-## Step 3: Merge Extracted Tokens
+## Step 4: Merge Extracted Tokens
 
 If multiple URLs were provided:
 
@@ -126,7 +135,7 @@ If multiple URLs were provided:
 
 If single URL, use its tokens directly.
 
-## Step 4: Write design-tokens.json
+## Step 5: Write design-tokens.json
 
 Write the merged tokens to `design-tokens.json` at the project root in W3C DTCG format:
 
@@ -150,7 +159,7 @@ Write the merged tokens to `design-tokens.json` at the project root in W3C DTCG 
 }
 ```
 
-## Step 5: Present Summary
+## Step 6: Present Summary
 
 Display a summary of extracted tokens:
 
@@ -171,8 +180,8 @@ Written to: design-tokens.json
 
 Next steps:
   1. Run /design-language to define brand personality
-  2. Review design-tokens.json and adjust values as needed
-  3. Run /design-implement web|swiftui to generate platform-specific token files
+  2. Run /design-mockup <screen> to generate HTML mockups
+  3. Run /design-implement web|swiftui to generate production code
 ```
 
 ## Rules

@@ -238,6 +238,26 @@ Memory search supports three modes: `keyword` (FTS5 full-text), `semantic` (sqli
 
 The memory system uses a separate SQLite database (`memory.db`) from the bridge database. `MemoryDbClient` mirrors the `DbClient` pattern with prepared statements for graph operations (nodes, edges, FTS5 index, vector embeddings). Both databases use WAL mode.
 
+## Design Language
+
+| File | Purpose |
+|------|---------|
+| `planning/DESIGN_SYSTEM.md` | Design principles, component catalog, strategic decisions |
+| `.impeccable.md` | Brand personality + aesthetic direction (AI context) |
+| `design-tokens.json` | W3C DTCG tokens (colors, typography, spacing) |
+
+Run `/design-analyze <url>` to extract tokens from reference sites.
+Run `/design-language` to define brand context.
+
+### Design Pipeline
+
+```
+/design-analyze → /design-language → /design-mockup → /design-implement → /design-refine → /design-verify
+                                   ^
+                          /design-evolve (anytime)
+```
+
+
 ## Code Style
 
 - **ESM only** — all imports use `.js` extensions

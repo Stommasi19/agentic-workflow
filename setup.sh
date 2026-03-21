@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 
 # Canonical list of skills managed by this toolkit
-MANAGED_SKILLS=(review postReview addressReview enhancePrompt rootCause bugHunt bugReport shipRelease syncDocs weeklyRetro officeHours productReview archReview)
+MANAGED_SKILLS=(review postReview addressReview enhancePrompt rootCause bugHunt bugReport shipRelease syncDocs weeklyRetro officeHours productReview archReview design-analyze design-language design-evolve design-mockup design-implement design-refine design-verify)
 
 echo "=== Agentic Workflow Setup ==="
 echo ""
@@ -266,6 +266,57 @@ else
   echo "  claude CLI not found, skipping plugin installation"
 fi
 
+# --- Dembrandt CLI ---
+echo ""
+echo "Installing Dembrandt CLI..."
+
+DEMBRANDT_VERSION="0.7.0"
+
+if command -v dembrandt &>/dev/null; then
+  echo "  dembrandt: already installed ($(dembrandt --version 2>/dev/null || echo 'unknown version'))"
+else
+  npm install -g "dembrandt@$DEMBRANDT_VERSION" 2>&1 && \
+    echo "  dembrandt: installed globally ($DEMBRANDT_VERSION)" || \
+    echo "  dembrandt: failed to install (non-fatal, install manually: npm install -g dembrandt)"
+fi
+
+# --- Impeccable Skills ---
+echo ""
+echo "Installing Impeccable skills..."
+
+IMPECCABLE_VERSION="d6b1a56bc5b79e9375be0f8508b4daa1678fb058"
+IMPECCABLE_DIR="$HOME/.claude/impeccable-cache"
+IMPECCABLE_SKILLS_SRC="$IMPECCABLE_DIR/dist/claude-code"
+
+if [ -d "$IMPECCABLE_SKILLS_SRC" ]; then
+  echo "  impeccable: cache exists, checking for updates..."
+  (cd "$IMPECCABLE_DIR" && git fetch origin && git checkout "$IMPECCABLE_VERSION") || \
+    echo "  Warning: Could not update Impeccable cache. Using existing version."
+else
+  echo "  impeccable: cloning pbakaus/impeccable..."
+  git clone https://github.com/pbakaus/impeccable.git "$IMPECCABLE_DIR" 2>&1 && \
+    (cd "$IMPECCABLE_DIR" && git checkout "$IMPECCABLE_VERSION") || {
+    echo "  impeccable: failed to clone (non-fatal)"
+    IMPECCABLE_SKILLS_SRC=""
+  }
+fi
+
+if [ -n "$IMPECCABLE_SKILLS_SRC" ] && [ -d "$IMPECCABLE_SKILLS_SRC" ]; then
+  for skill_dir in "$IMPECCABLE_SKILLS_SRC"/*/; do
+    [ -d "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    target="$CLAUDE_DIR/skills/$skill_name"
+    # Always copy from cache (overwrite existing) — content is deterministic because
+    # we pin to a specific commit hash, so re-copying is safe and ensures updates propagate.
+    [ -L "$target" ] && rm "$target"
+    [ -d "$target" ] && rm -rf "$target"
+    cp -r "$skill_dir" "$target"
+    echo "  impeccable/$skill_name: installed"
+  done
+else
+  echo "  impeccable: skipped (source not available)"
+fi
+
 # --- Output Directory ---
 echo ""
 echo "Creating output directory..."
@@ -275,13 +326,15 @@ echo "  ~/.agentic-workflow/: created"
 echo ""
 echo "=== Setup Complete ==="
 echo ""
-echo "Skills installed (14):"
+echo "Skills installed (21):"
 echo "  Review pipeline:  review, postReview, addressReview"
 echo "  Investigation:    rootCause"
 echo "  QA:               bugHunt, bugReport"
 echo "  Release:          shipRelease, syncDocs"
 echo "  Retrospective:    weeklyRetro"
 echo "  Planning:         officeHours, productReview, archReview"
+echo "  Design:           design-analyze, design-language, design-evolve,"
+echo "                    design-mockup, design-implement, design-refine, design-verify"
 echo "  Utilities:        enhancePrompt, bootstrap"
 echo ""
 echo "Config location:    $CLAUDE_DIR/"

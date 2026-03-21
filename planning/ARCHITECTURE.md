@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Agentic Workflow is a portable Claude Code toolkit with four independent components: 14 custom skills spanning the full development lifecycle (planning, review, debugging, QA, shipping, retrospectives), a documentation bootstrapper skill, a TypeScript MCP bridge server for inter-agent communication, a Next.js 15 conversation dashboard UI, and a centralized output directory for cross-skill artifact sharing. The skills are installed by symlinking into `~/.claude/skills/` and invoked as slash commands inside Claude Code sessions. The MCP bridge runs as either a stdio MCP server (registered with `claude mcp add`) or a standalone Fastify REST API, persisting messages and tasks to a local SQLite database so agents can exchange context asynchronously. The UI connects to the bridge REST API and receives real-time updates via SSE.
+Agentic Workflow is a portable Claude Code toolkit with four independent components: 21 custom skills spanning the full development lifecycle (planning, design, review, debugging, QA, shipping, retrospectives), a documentation bootstrapper skill, a TypeScript MCP bridge server for inter-agent communication, a Next.js 15 conversation dashboard UI, and a centralized output directory for cross-skill artifact sharing. The skills are installed by symlinking into `~/.claude/skills/` and invoked as slash commands inside Claude Code sessions. The MCP bridge runs as either a stdio MCP server (registered with `claude mcp add`) or a standalone Fastify REST API, persisting messages and tasks to a local SQLite database so agents can exchange context asynchronously. The UI connects to the bridge REST API and receives real-time updates via SSE.
 
 ```mermaid
 graph TD
@@ -88,7 +88,7 @@ Each skill writes outputs to `~/.agentic-workflow/<repo-slug>/` that downstream 
 
 ```
 agentic-workflow/
-├── skills/                              # Claude Code custom slash-command skills (14)
+├── skills/                              # Claude Code custom slash-command skills (21)
 │   ├── review/                          # /review — multi-agent PR review orchestrator
 │   │   ├── SKILL.md                     #   skill manifest + 7-step orchestration flow
 │   │   ├── triage-prompt.md             #   subagent prompt: classify files → reviewer agents
@@ -178,7 +178,7 @@ agentic-workflow/
 │           ├── diagrams.ts            #   Mermaid builders: buildDirectedGraph, buildSequenceDiagram
 │           └── types.ts               #   TypeScript types mirroring bridge schemas
 ├── start.sh                            # Start bridge (:3100) + UI (:3000) together
-├── setup.sh                            # One-command installer: symlinks 14 skills, copies config, creates output dir
+├── setup.sh                            # One-command installer: symlinks 21 skills, copies config, creates output dir
 ├── .gitignore                          # Ignores node_modules, dist, *.db, .env, .review-cache
 └── README.md                           # Project overview, setup instructions, env vars
 ```
@@ -201,7 +201,7 @@ The repo slug is derived from `git remote get-url origin` (e.g., `org-name-repo-
 
 ### Overview
 
-Fourteen Claude Code custom skills defined as Markdown SKILL.md files with YAML frontmatter. Skills are slash commands that Claude Code executes as structured workflows. They use the `Agent` tool to spawn parallel subagents and `gh` CLI for GitHub API access. Every skill includes a shared preamble that lists all 14 skills, points to the centralized output directory, and checks bootstrap status.
+Twenty-one Claude Code custom skills defined as Markdown SKILL.md files with YAML frontmatter. Skills are slash commands that Claude Code executes as structured workflows. They use the `Agent` tool to spawn parallel subagents and `gh` CLI for GitHub API access. Every skill includes a shared preamble that lists all 21 skills, points to the centralized output directory, and checks bootstrap status.
 
 ### Review Pipeline (skills/review/, postReview/, addressReview/)
 
@@ -243,7 +243,7 @@ A utility skill that discovers project documentation files (CLAUDE.md, planning/
 
 ### Bootstrap (bootstrap/)
 
-Orchestrates generation of up to 17 Pivot-pattern planning documents (ARCHITECTURE, ERD, API_CONTRACT, TESTING, etc.) plus a CLAUDE.md for any repository. Audits existing coverage by searching for docs under flexible name patterns, then spawns batched `Agent` subagents (4-5 at a time) to research and write missing docs. Adapts content to the target repo's actual tech stack. Suggests relevant skills from the full 14-skill pipeline as next steps.
+Orchestrates generation of up to 17 Pivot-pattern planning documents (ARCHITECTURE, ERD, API_CONTRACT, TESTING, etc.) plus a CLAUDE.md for any repository. Audits existing coverage by searching for docs under flexible name patterns, then spawns batched `Agent` subagents (4-5 at a time) to research and write missing docs. Adapts content to the target repo's actual tech stack. Suggests relevant skills from the full 21-skill pipeline as next steps.
 
 ## Component 2: MCP Bridge (mcp-bridge/)
 
@@ -336,7 +336,7 @@ Archived Claude Code configuration for replication across machines:
 
 2. **All skill outputs go to the centralized directory.** `~/.agentic-workflow/<repo-slug>/` is the persistent output directory shared across all skills. Subdirectories: `reviews/`, `investigations/`, `qa/`, `plans/`, `releases/`, `retros/`. The repo slug is derived from `git remote get-url origin` or falls back to the directory name.
 
-3. **Every skill includes the shared preamble.** The preamble lists all 14 skills, points to the output directory, and checks bootstrap status (skills symlinked, MCP bridge built). If not bootstrapped, it prompts the user to run `setup.sh`.
+3. **Every skill includes the shared preamble.** The preamble lists all 21 skills, points to the output directory, and checks bootstrap status (skills symlinked, MCP bridge built). If not bootstrapped, it prompts the user to run `setup.sh`.
 
 4. **Application services never throw.** Every service function returns `AppResult<T>` — a discriminated union of `ok(data)` or `err(AppError)`. Error propagation uses value returns, not exceptions. The transport layer maps `AppError.statusHint` to HTTP status codes.
 

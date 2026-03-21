@@ -1,6 +1,6 @@
 # CLAUDE.md — agentic-workflow
 
-> Portable Claude Code workflow toolkit: 14 custom skills, config archive, repo bootstrapper, and a bidirectional MCP bridge for multi-agent communication.
+> Portable Claude Code workflow toolkit: 21 custom skills, config archive, repo bootstrapper, and a bidirectional MCP bridge for multi-agent communication.
 
 ## Required Context
 

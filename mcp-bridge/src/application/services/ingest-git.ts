@@ -1,5 +1,6 @@
 // mcp-bridge/src/application/services/ingest-git.ts
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
+import { statSync } from "node:fs";
 import type { MemoryDbClient, NodeRow } from "../../db/memory-client.js";
 import type { SecretFilter } from "../../ingestion/secret-filter.js";
 import type { AppResult } from "../result.js";
@@ -56,20 +57,33 @@ function parseGitLog(output: string): CommitRecord[] {
     .filter((c) => c.sha.length > 0);
 }
 
-function runGitLog(repoPath: string): CommitRecord[] {
-  const output = execSync(
-    `git log --format="%H|%s|%an|%ai" --since="30 days ago"`,
+/** Validate that repoPath exists and is a directory. */
+function validateRepoPath(repoPath: string): void {
+  const stat = statSync(repoPath, { throwIfNoEntry: false });
+  if (!stat || !stat.isDirectory()) {
+    throw new Error(`repoPath is not a valid directory: ${repoPath}`);
+  }
+}
+
+function runGitLog(repoPath: string, since?: string): CommitRecord[] {
+  validateRepoPath(repoPath);
+  const sinceArg = since ?? "30 days ago";
+  const output = execFileSync(
+    "git",
+    ["log", "--format=%H|%s|%an|%ai", `--since=${sinceArg}`],
     { cwd: repoPath, encoding: "utf8" },
-  ) as unknown as string;
+  );
   return parseGitLog(output);
 }
 
 function runGhPrList(repoPath: string): PrRecord[] | null {
   try {
-    const output = execSync(
-      `gh pr list --state all --limit 50 --json number,title,author,state,createdAt,body`,
+    validateRepoPath(repoPath);
+    const output = execFileSync(
+      "gh",
+      ["pr", "list", "--state", "all", "--limit", "50", "--json", "number,title,author,state,createdAt,body"],
       { cwd: repoPath, encoding: "utf8" },
-    ) as unknown as string;
+    );
     if (!output.trim()) return [];
     const parsed = JSON.parse(output) as Array<{
       number: number;
@@ -96,6 +110,22 @@ function runGhPrList(repoPath: string): PrRecord[] | null {
 // ── Reference scanning ────────────────────────────────────────────────
 
 /**
+ * Build a Map keyed by the first 7 chars of each commit SHA for O(1)
+ * prefix lookups, instead of iterating all commits for each match.
+ */
+function buildShaIndex(commitNodes: Map<string, NodeRow>): Map<string, NodeRow> {
+  const index = new Map<string, NodeRow>();
+  for (const [sha, node] of commitNodes) {
+    const prefix = sha.slice(0, 7);
+    // First writer wins — matches the old behaviour of "first hit in iteration"
+    if (!index.has(prefix)) {
+      index.set(prefix, node);
+    }
+  }
+  return index;
+}
+
+/**
  * Scan all message nodes in the repo and create `references` edges
  * for any SHAs or PR numbers that match known artifact nodes.
  *
@@ -110,35 +140,39 @@ function scanAndLinkReferences(
   const messages = mdb.getNodesByRepoAndKind(repo, "message");
   let refsCreated = 0;
 
+  // Build SHA prefix index for O(1) lookups instead of O(M*S*C)
+  const shaIndex = buildShaIndex(commitNodes);
+
   for (const msg of messages) {
     const body = msg.body;
     const seenTargets = new Set<string>();
 
-    // Check SHA references
+    // Check SHA references — O(1) lookup per match via 7-char prefix index
     SHA_PATTERN.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = SHA_PATTERN.exec(body)) !== null) {
       const sha = match[1];
-      // Look for full SHA match among commit nodes by checking if any commit sha starts with this
-      for (const [commitSha, commitNode] of commitNodes) {
-        if (commitSha.startsWith(sha) || sha.startsWith(commitSha.slice(0, 7))) {
-          const targetId = commitNode.id;
-          if (!seenTargets.has(targetId)) {
-            seenTargets.add(targetId);
-            try {
-              mdb.insertEdge({
-                repo,
-                from_node: msg.id,
-                to_node: targetId,
-                kind: "references",
-                weight: 1.0,
-                meta: JSON.stringify({ matched_sha: sha }),
-                auto: true,
-              });
-              refsCreated++;
-            } catch {
-              // Edge already exists (unique constraint) — skip
-            }
+      const prefix = sha.slice(0, 7);
+
+      // Try exact full-SHA match first, then prefix index
+      const commitNode = commitNodes.get(sha) ?? shaIndex.get(prefix);
+      if (commitNode) {
+        const targetId = commitNode.id;
+        if (!seenTargets.has(targetId)) {
+          seenTargets.add(targetId);
+          try {
+            mdb.insertEdge({
+              repo,
+              from_node: msg.id,
+              to_node: targetId,
+              kind: "references",
+              weight: 1.0,
+              meta: JSON.stringify({ matched_sha: sha }),
+              auto: true,
+            });
+            refsCreated++;
+          } catch {
+            // Edge already exists (unique constraint) — skip
           }
         }
       }
@@ -184,10 +218,14 @@ export async function ingestGitMetadata(
   const { repo, repoPath } = input;
 
   try {
-    // 1. Run git log
+    // 0. Read cursor for incremental ingestion (fallback to 30 days)
+    const cursor = mdb.getCursor("git-ingest", repo);
+    const since = cursor ? `${cursor}` : undefined;
+
+    // 1. Run git log (uses cursor-based --since or defaults to 30 days)
     let commits: CommitRecord[];
     try {
-      commits = runGitLog(repoPath);
+      commits = runGitLog(repoPath, since);
     } catch (e) {
       return err({
         code: "GIT_ERROR",
@@ -199,10 +237,10 @@ export async function ingestGitMetadata(
     // 2. Ingest commits (idempotent via getNodeBySource)
     let commitsIngested = 0;
     const commitNodes = new Map<string, NodeRow>();
-    let newestSha: string | undefined;
+    let newestDate: string | undefined;
 
     for (const commit of commits) {
-      if (!newestSha) newestSha = commit.sha;
+      if (!newestDate) newestDate = commit.date;
 
       const existing = mdb.getNodeBySource("git", commit.sha);
       if (existing) {
@@ -266,9 +304,9 @@ export async function ingestGitMetadata(
     // 4. Scan message nodes and create references edges
     const refsCreated = scanAndLinkReferences(mdb, repo, commitNodes, prNodes);
 
-    // 5. Advance cursor to most recent commit SHA
-    if (newestSha) {
-      mdb.upsertCursor("git-ingest", repo, newestSha);
+    // 5. Advance cursor to most recent commit date (used as --since on next run)
+    if (newestDate) {
+      mdb.upsertCursor("git-ingest", repo, newestDate);
     }
 
     return ok({ commits_ingested: commitsIngested, prs_ingested: prsIngested, references_created: refsCreated });

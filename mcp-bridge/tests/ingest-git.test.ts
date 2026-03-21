@@ -10,11 +10,15 @@ import { ingestGitMetadata, type IngestGitInput } from "../src/application/servi
 // ── Mock child_process ─────────────────────────────────────────────────
 
 vi.mock("node:child_process", () => ({
-  execSync: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
-import { execSync } from "node:child_process";
-const mockExecSync = vi.mocked(execSync);
+vi.mock("node:fs", () => ({
+  statSync: vi.fn(() => ({ isDirectory: () => true })),
+}));
+
+import { execFileSync } from "node:child_process";
+const mockExecFileSync = vi.mocked(execFileSync);
 
 // ── Test setup ──────────────────────────────────────────────────────────
 
@@ -46,15 +50,16 @@ beforeEach(() => {
 
 describe("ingestGitMetadata", () => {
   it("parses git log output and creates artifact nodes for each commit", async () => {
-    mockExecSync.mockImplementation((cmd: unknown) => {
+    mockExecFileSync.mockImplementation((cmd: unknown, args: unknown) => {
       const c = cmd as string;
-      if (c.includes("git log")) {
+      const a = args as string[];
+      if (c === "git" && a[0] === "log") {
         return makeGitLogOutput(
           { sha: "abc1234", subject: "feat: add login", author: "Alice", date: "2026-03-18T10:00:00+00:00" },
           { sha: "def5678", subject: "fix: typo", author: "Bob", date: "2026-03-17T09:00:00+00:00" },
         );
       }
-      if (c.includes("gh pr list")) {
+      if (c === "gh" && a[0] === "pr") {
         return makeGhPrOutput([]);
       }
       return "";
@@ -77,14 +82,15 @@ describe("ingestGitMetadata", () => {
   });
 
   it("creates references edges when a message body contains a commit SHA", async () => {
-    mockExecSync.mockImplementation((cmd: unknown) => {
+    mockExecFileSync.mockImplementation((cmd: unknown, args: unknown) => {
       const c = cmd as string;
-      if (c.includes("git log")) {
+      const a = args as string[];
+      if (c === "git" && a[0] === "log") {
         return makeGitLogOutput(
           { sha: "abc1234def56789", subject: "fix: something", author: "Alice", date: "2026-03-18T10:00:00+00:00" },
         );
       }
-      if (c.includes("gh pr list")) return makeGhPrOutput([]);
+      if (c === "gh" && a[0] === "pr") return makeGhPrOutput([]);
       return "";
     });
 
@@ -119,10 +125,11 @@ describe("ingestGitMetadata", () => {
   });
 
   it("creates references edges when a message body contains a PR ref (#123)", async () => {
-    mockExecSync.mockImplementation((cmd: unknown) => {
+    mockExecFileSync.mockImplementation((cmd: unknown, args: unknown) => {
       const c = cmd as string;
-      if (c.includes("git log")) return makeGitLogOutput();
-      if (c.includes("gh pr list")) {
+      const a = args as string[];
+      if (c === "git" && a[0] === "log") return makeGitLogOutput();
+      if (c === "gh" && a[0] === "pr") {
         return makeGhPrOutput([
           { number: 42, title: "Add OAuth", author: "carol", state: "merged", createdAt: "2026-03-15T08:00:00Z", body: "Implements OAuth 2.0" },
         ]);
@@ -160,14 +167,15 @@ describe("ingestGitMetadata", () => {
   });
 
   it("is idempotent — re-ingesting same commits creates no duplicates", async () => {
-    mockExecSync.mockImplementation((cmd: unknown) => {
+    mockExecFileSync.mockImplementation((cmd: unknown, args: unknown) => {
       const c = cmd as string;
-      if (c.includes("git log")) {
+      const a = args as string[];
+      if (c === "git" && a[0] === "log") {
         return makeGitLogOutput(
           { sha: "aabbcc1", subject: "feat: initial", author: "Alice", date: "2026-03-18T10:00:00+00:00" },
         );
       }
-      if (c.includes("gh pr list")) return makeGhPrOutput([]);
+      if (c === "gh" && a[0] === "pr") return makeGhPrOutput([]);
       return "";
     });
 
@@ -183,14 +191,15 @@ describe("ingestGitMetadata", () => {
   });
 
   it("handles missing gh CLI gracefully — skips PR ingestion and returns partial result", async () => {
-    mockExecSync.mockImplementation((cmd: unknown) => {
+    mockExecFileSync.mockImplementation((cmd: unknown, args: unknown) => {
       const c = cmd as string;
-      if (c.includes("git log")) {
+      const a = args as string[];
+      if (c === "git" && a[0] === "log") {
         return makeGitLogOutput(
           { sha: "abc1234", subject: "fix: bug", author: "Alice", date: "2026-03-18T10:00:00+00:00" },
         );
       }
-      if (c.includes("gh pr list")) {
+      if (c === "gh" && a[0] === "pr") {
         throw new Error("gh: command not found");
       }
       return "";
@@ -205,15 +214,16 @@ describe("ingestGitMetadata", () => {
   });
 
   it("advances the cursor after successful ingestion", async () => {
-    mockExecSync.mockImplementation((cmd: unknown) => {
+    mockExecFileSync.mockImplementation((cmd: unknown, args: unknown) => {
       const c = cmd as string;
-      if (c.includes("git log")) {
+      const a = args as string[];
+      if (c === "git" && a[0] === "log") {
         return makeGitLogOutput(
           { sha: "sha111aaa", subject: "feat: x", author: "Alice", date: "2026-03-18T10:00:00+00:00" },
           { sha: "sha222bbb", subject: "feat: y", author: "Bob", date: "2026-03-17T09:00:00+00:00" },
         );
       }
-      if (c.includes("gh pr list")) return makeGhPrOutput([]);
+      if (c === "gh" && a[0] === "pr") return makeGhPrOutput([]);
       return "";
     });
 
@@ -224,19 +234,20 @@ describe("ingestGitMetadata", () => {
 
     const cursorAfter = mdb.getCursor("git-ingest", repo);
     expect(cursorAfter).toBeDefined();
-    // Cursor should be the first (most recent) SHA
-    expect(cursorAfter).toBe("sha111aaa");
+    // Cursor should be the first (most recent) commit date
+    expect(cursorAfter).toBe("2026-03-18T10:00:00+00:00");
   });
 
   it("filters commit messages through SecretFilter before storing", async () => {
-    mockExecSync.mockImplementation((cmd: unknown) => {
+    mockExecFileSync.mockImplementation((cmd: unknown, args: unknown) => {
       const c = cmd as string;
-      if (c.includes("git log")) {
+      const a = args as string[];
+      if (c === "git" && a[0] === "log") {
         return makeGitLogOutput(
           { sha: "abc1234", subject: "add AKIAIOSFODNN7EXAMPLE key", author: "Alice", date: "2026-03-18T10:00:00+00:00" },
         );
       }
-      if (c.includes("gh pr list")) return makeGhPrOutput([]);
+      if (c === "gh" && a[0] === "pr") return makeGhPrOutput([]);
       return "";
     });
 
@@ -248,10 +259,11 @@ describe("ingestGitMetadata", () => {
   });
 
   it("handles empty git log output (no commits in range)", async () => {
-    mockExecSync.mockImplementation((cmd: unknown) => {
+    mockExecFileSync.mockImplementation((cmd: unknown, args: unknown) => {
       const c = cmd as string;
-      if (c.includes("git log")) return "";
-      if (c.includes("gh pr list")) return makeGhPrOutput([]);
+      const a = args as string[];
+      if (c === "git" && a[0] === "log") return "";
+      if (c === "gh" && a[0] === "pr") return makeGhPrOutput([]);
       return "";
     });
 

@@ -56,7 +56,7 @@ export async function searchMemory(
   if (mode === "semantic" || mode === "hybrid") {
     const embedResult = await embedService.embed(`search_query: ${query}`);
     if (embedResult.ok) {
-      const knn = mdb.searchKNN(embedResult.data, limit * 2);
+      const knn = mdb.searchKNN(embedResult.data, limit * 2, repo);
       knn.forEach((r, i) => vecResults.set(r.node_id, { node_id: r.node_id, rank: i + 1 }));
     } else if (mode === "semantic") {
       return err({ code: "EMBEDDING_FAILED", message: "Semantic search requires working embeddings", statusHint: 503 });

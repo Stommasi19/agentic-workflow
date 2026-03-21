@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Agentic Workflow is a portable Claude Code toolkit with four independent components: 14 custom skills spanning the full development lifecycle (planning, review, debugging, QA, shipping, retrospectives), a documentation bootstrapper skill, a TypeScript MCP bridge server for inter-agent communication, a Next.js 15 conversation dashboard UI, and a centralized output directory for cross-skill artifact sharing. The skills are installed by symlinking into `~/.claude/skills/` and invoked as slash commands inside Claude Code sessions. The MCP bridge runs as either a stdio MCP server (registered with `claude mcp add`) or a standalone Fastify REST API, persisting messages and tasks to a local SQLite database so agents can exchange context asynchronously. The UI connects to the bridge REST API and receives real-time updates via SSE.
+Agentic Workflow is a portable Claude Code toolkit with four independent components: 21 custom skills spanning the full development lifecycle (planning, design, review, debugging, QA, shipping, retrospectives), a documentation bootstrapper skill, a TypeScript MCP bridge server for inter-agent communication, a Next.js 15 conversation dashboard UI, and a centralized output directory for cross-skill artifact sharing. The skills are installed by symlinking into `~/.claude/skills/` and invoked as slash commands inside Claude Code sessions. The MCP bridge runs as either a stdio MCP server (registered with `claude mcp add`) or a standalone Fastify REST API, persisting messages and tasks to a local SQLite database so agents can exchange context asynchronously. The UI connects to the bridge REST API and receives real-time updates via SSE.
 
 ```mermaid
 graph TD
@@ -33,6 +33,23 @@ graph TD
     subgraph "Claude Code Session — Utilities"
         User --> |"/enhancePrompt"| EnhancePrompt[enhancePrompt skill]
         User --> |"/bootstrap"| Bootstrap[bootstrap skill]
+    end
+
+    subgraph "Claude Code Session — Design"
+        User --> |"/design-analyze"| DesignAnalyze[design-analyze skill]
+        User --> |"/design-language"| DesignLanguage[design-language skill]
+        User --> |"/design-evolve"| DesignEvolve[design-evolve skill]
+        User --> |"/design-mockup"| DesignMockup[design-mockup skill]
+        User --> |"/design-implement"| DesignImplement[design-implement skill]
+        User --> |"/design-refine"| DesignRefine[design-refine skill]
+        User --> |"/design-verify"| DesignVerify[design-verify skill]
+        DesignAnalyze --> DesignLanguage
+        DesignEvolve --> DesignLanguage
+        DesignEvolve --> DesignAnalyze
+        DesignLanguage --> DesignMockup
+        DesignMockup --> DesignImplement
+        DesignImplement --> DesignRefine
+        DesignRefine --> DesignVerify
     end
 
     Review --> |"gh pr diff"| GitHub
@@ -79,7 +96,9 @@ graph TD
 Skills are designed to flow into each other in a natural development lifecycle:
 
 ```
-officeHours → productReview / archReview → implement → review → rootCause → bugHunt → shipRelease → syncDocs → weeklyRetro
+officeHours → productReview / archReview
+    → design-analyze → design-language → design-mockup → design-implement → design-refine → design-verify
+    → review → rootCause → bugHunt → shipRelease → syncDocs → weeklyRetro
 ```
 
 Each skill writes outputs to `~/.agentic-workflow/<repo-slug>/` that downstream skills auto-discover.
@@ -88,7 +107,7 @@ Each skill writes outputs to `~/.agentic-workflow/<repo-slug>/` that downstream 
 
 ```
 agentic-workflow/
-├── skills/                              # Claude Code custom slash-command skills (14)
+├── skills/                              # Claude Code custom slash-command skills (21)
 │   ├── review/                          # /review — multi-agent PR review orchestrator
 │   │   ├── SKILL.md                     #   skill manifest + 7-step orchestration flow
 │   │   ├── triage-prompt.md             #   subagent prompt: classify files → reviewer agents
@@ -119,7 +138,15 @@ agentic-workflow/
 │   │   └── SKILL.md                     #   4 modes: mvp, growth, scale, pivot
 │   ├── archReview/                      # /archReview — engineering architecture review
 │   │   └── SKILL.md                     #   mandatory diagrams, edge case analysis
-│   └── _preamble.md                     # Shared preamble reference (not a skill)
+│   ├── design-analyze/                  # /design-analyze — extract design tokens from reference sites
+│   ├── design-language/                 # /design-language — define brand personality and aesthetic direction
+│   ├── design-evolve/                   # /design-evolve — merge new reference into existing design language
+│   ├── design-mockup/                   # /design-mockup — generate HTML mockup using design language
+│   ├── design-implement/                # /design-implement — generate production code from mockup
+│   ├── design-refine/                   # /design-refine — dispatch Impeccable refinement commands
+│   ├── design-verify/                   # /design-verify — screenshot diff implementation vs mockup
+│   ├── _preamble.md                     # Shared preamble reference (not a skill)
+│   └── _design-preamble.md              # Shared design context preamble (not a skill)
 ├── bootstrap/                           # /bootstrap — repo documentation generator
 │   └── SKILL.md                         #   audits 17 Pivot-pattern docs, generates missing
 ├── config/                              # Claude Code configuration archive
@@ -178,7 +205,7 @@ agentic-workflow/
 │           ├── diagrams.ts            #   Mermaid builders: buildDirectedGraph, buildSequenceDiagram
 │           └── types.ts               #   TypeScript types mirroring bridge schemas
 ├── start.sh                            # Start bridge (:3100) + UI (:3000) together
-├── setup.sh                            # One-command installer: symlinks 14 skills, copies config, creates output dir
+├── setup.sh                            # One-command installer: symlinks 21 skills, copies config, creates output dir
 ├── .gitignore                          # Ignores node_modules, dist, *.db, .env, .review-cache
 └── README.md                           # Project overview, setup instructions, env vars
 ```
@@ -187,6 +214,7 @@ agentic-workflow/
 
 ```
 ~/.agentic-workflow/<repo-slug>/
+├── design/           # /design-mockup, /design-verify baselines and diffs
 ├── reviews/          # /review, /postReview, /addressReview state files
 ├── investigations/   # /rootCause investigation reports
 ├── qa/               # /bugHunt and /bugReport reports
@@ -201,7 +229,7 @@ The repo slug is derived from `git remote get-url origin` (e.g., `org-name-repo-
 
 ### Overview
 
-Fourteen Claude Code custom skills defined as Markdown SKILL.md files with YAML frontmatter. Skills are slash commands that Claude Code executes as structured workflows. They use the `Agent` tool to spawn parallel subagents and `gh` CLI for GitHub API access. Every skill includes a shared preamble that lists all 14 skills, points to the centralized output directory, and checks bootstrap status.
+Twenty-one Claude Code custom skills defined as Markdown SKILL.md files with YAML frontmatter. Skills are slash commands that Claude Code executes as structured workflows. They use the `Agent` tool to spawn parallel subagents and `gh` CLI for GitHub API access. Every skill includes a shared preamble that lists all 21 skills, points to the centralized output directory, and checks bootstrap status.
 
 ### Review Pipeline (skills/review/, postReview/, addressReview/)
 
@@ -237,13 +265,35 @@ A three-phase PR review workflow with a shared state file (`~/.agentic-workflow/
 
 **`/archReview`** — Engineering architecture review with mandatory mermaid diagrams (component, data flow, sequence). Edge case analysis at every component boundary. Scores complexity, scalability, maintainability (1-10). Delivers SOUND/NEEDS WORK/REDESIGN verdict. Writes to `plans/`.
 
+### Design Pipeline (skills/design-*)
+
+A seven-skill pipeline for extracting brand identity from reference sites and generating pixel-accurate UI implementations. Design artifacts are written to `~/.agentic-workflow/<repo-slug>/design/`.
+
+**`/design-analyze`** — Runs the Dembrandt CLI against one or more reference URLs to extract a structured set of design tokens (colors, typography, spacing, motion) and writes them to `design-tokens.json` in W3C DTCG format. The extracted tokens serve as the raw material for the design language step.
+
+**`/design-language`** — Interactive session that synthesizes token analysis into a brand personality document. Asks forcing questions about tone, target audience, and aesthetic direction, then writes `.impeccable.md` with the brand context and updates `planning/DESIGN_SYSTEM.md` with the full component catalog and strategic decisions.
+
+**`/design-evolve`** — Merges a new reference site into an existing design language. Runs Dembrandt on the new URL, diffs against the current `design-tokens.json`, and updates `.impeccable.md` and `DESIGN_SYSTEM.md` to incorporate the new influences without discarding prior decisions.
+
+**`/design-mockup`** — Generates a self-contained HTML mockup file using the design language from `.impeccable.md` and `design-tokens.json`. The mockup is written to `~/.agentic-workflow/<repo-slug>/design/` and serves as the pixel-accurate baseline for downstream implementation and verification.
+
+**`/design-implement`** — Reads the mockup and design language, then generates production-quality component code targeting either web (React/Next.js with Tailwind) or SwiftUI. Aligns component structure, spacing, and color usage to the design tokens.
+
+**`/design-refine`** — Dispatches Impeccable refinement commands with the full design context injected. Used to iteratively tighten spacing, typography, and visual hierarchy in the implementation against the mockup baseline.
+
+**`/design-verify`** — Takes screenshots of both the mockup and the live implementation, performs a pixel diff, and writes a verification report to `design/`. Reports deviation percentage and highlights mismatched regions. Used as the acceptance gate before shipping UI changes.
+
+Pipeline: `design-analyze → design-language → design-mockup → design-implement → design-refine → design-verify` (`design-evolve` can run anytime to incorporate new references)
+
+Design artifacts: `.impeccable.md` (brand context for AI tools), `design-tokens.json` (W3C DTCG token set), `planning/DESIGN_SYSTEM.md` (component catalog and strategic decisions).
+
 ### Prompt Enhancer (skills/enhancePrompt/)
 
 A utility skill that discovers project documentation files (CLAUDE.md, planning/, docs/), reads those relevant to the user's current request, and rewrites the prompt with injected context before execution. Used by `/bootstrap` as its first step.
 
 ### Bootstrap (bootstrap/)
 
-Orchestrates generation of up to 17 Pivot-pattern planning documents (ARCHITECTURE, ERD, API_CONTRACT, TESTING, etc.) plus a CLAUDE.md for any repository. Audits existing coverage by searching for docs under flexible name patterns, then spawns batched `Agent` subagents (4-5 at a time) to research and write missing docs. Adapts content to the target repo's actual tech stack. Suggests relevant skills from the full 14-skill pipeline as next steps.
+Orchestrates generation of up to 17 Pivot-pattern planning documents (ARCHITECTURE, ERD, API_CONTRACT, TESTING, etc.) plus a CLAUDE.md for any repository. Audits existing coverage by searching for docs under flexible name patterns, then spawns batched `Agent` subagents (4-5 at a time) to research and write missing docs. Adapts content to the target repo's actual tech stack. Suggests relevant skills from the full 21-skill pipeline as next steps.
 
 ## Component 2: MCP Bridge (mcp-bridge/)
 
@@ -334,9 +384,9 @@ Archived Claude Code configuration for replication across machines:
 
 1. **Skills are stateless Markdown.** Each skill is a SKILL.md with YAML frontmatter (`name`, `description`, `allowed-tools`, `disable-model-invocation`). The Markdown body is the prompt — Claude Code executes it step-by-step. No runtime code, no build step.
 
-2. **All skill outputs go to the centralized directory.** `~/.agentic-workflow/<repo-slug>/` is the persistent output directory shared across all skills. Subdirectories: `reviews/`, `investigations/`, `qa/`, `plans/`, `releases/`, `retros/`. The repo slug is derived from `git remote get-url origin` or falls back to the directory name.
+2. **All skill outputs go to the centralized directory.** `~/.agentic-workflow/<repo-slug>/` is the persistent output directory shared across all skills. Subdirectories: `design/`, `reviews/`, `investigations/`, `qa/`, `plans/`, `releases/`, `retros/`. The repo slug is derived from `git remote get-url origin` or falls back to the directory name.
 
-3. **Every skill includes the shared preamble.** The preamble lists all 14 skills, points to the output directory, and checks bootstrap status (skills symlinked, MCP bridge built). If not bootstrapped, it prompts the user to run `setup.sh`.
+3. **Every skill includes the shared preamble.** The preamble lists all 21 skills, points to the output directory, and checks bootstrap status (skills symlinked, MCP bridge built). If not bootstrapped, it prompts the user to run `setup.sh`.
 
 4. **Application services never throw.** Every service function returns `AppResult<T>` — a discriminated union of `ok(data)` or `err(AppError)`. Error propagation uses value returns, not exceptions. The transport layer maps `AppError.statusHint` to HTTP status codes.
 

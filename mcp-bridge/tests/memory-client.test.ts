@@ -1,6 +1,7 @@
 // mcp-bridge/tests/memory-client.test.ts
 import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
+import * as sqliteVec from "sqlite-vec";
 import { createMemoryDbClient, type MemoryDbClient } from "../src/db/memory-client.js";
 import { MEMORY_MIGRATIONS } from "../src/db/memory-schema.js";
 import { randomUUID } from "node:crypto";
@@ -9,6 +10,7 @@ let mdb: MemoryDbClient;
 
 beforeEach(() => {
   const raw = new Database(":memory:");
+  sqliteVec.load(raw);
   raw.pragma("journal_mode = WAL");
   raw.exec(MEMORY_MIGRATIONS);
   mdb = createMemoryDbClient(raw);
@@ -181,5 +183,41 @@ describe("stats", () => {
     const stats = mdb.getStats("r1");
     expect(stats.node_count).toBe(2);
     expect(stats.edge_count).toBe(0);
+  });
+});
+
+describe("embedding operations", () => {
+  it("inserts and retrieves embeddings for a node", () => {
+    const node = mdb.insertNode({
+      repo: "r",
+      kind: "message",
+      title: "t",
+      body: "b",
+      meta: "{}",
+      source_id: "s1",
+      source_type: "bridge",
+    });
+
+    const embedding = new Float32Array(768).fill(0.5);
+    mdb.insertEmbedding(node.id, embedding);
+
+    const result = mdb.getEmbedding(node.id);
+    expect(result).toBeDefined();
+    expect(result!.length).toBe(768);
+  });
+
+  it("performs KNN search", () => {
+    const n1 = mdb.insertNode({ repo: "r", kind: "message", title: "a", body: "b", meta: "{}", source_id: "s1", source_type: "bridge" });
+    const n2 = mdb.insertNode({ repo: "r", kind: "message", title: "c", body: "d", meta: "{}", source_id: "s2", source_type: "bridge" });
+    const n3 = mdb.insertNode({ repo: "r", kind: "message", title: "e", body: "f", meta: "{}", source_id: "s3", source_type: "bridge" });
+
+    const query = new Float32Array(768).fill(1.0);
+    mdb.insertEmbedding(n1.id, new Float32Array(768).fill(0.9));
+    mdb.insertEmbedding(n2.id, new Float32Array(768).fill(0.5));
+    mdb.insertEmbedding(n3.id, new Float32Array(768).fill(0.1));
+
+    const results = mdb.searchKNN(query, 2);
+    expect(results).toHaveLength(2);
+    expect(results[0].node_id).toBe(n1.id);
   });
 });

@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import Database from "better-sqlite3";
+import * as sqliteVec from "sqlite-vec";
 import { MEMORY_MIGRATIONS, createMemoryDatabase } from "../src/db/memory-schema.js";
 
 describe("MEMORY_MIGRATIONS", () => {
   it("creates all tables and indexes on a fresh database", () => {
     const db = new Database(":memory:");
+    sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
     db.exec(MEMORY_MIGRATIONS);
 
@@ -17,10 +19,12 @@ describe("MEMORY_MIGRATIONS", () => {
     expect(tableNames).toContain("edges");
     expect(tableNames).toContain("nodes_fts");
     expect(tableNames).toContain("ingestion_cursors");
+    expect(tableNames).toContain("node_embeddings");
   });
 
   it("creates expected indexes on nodes", () => {
     const db = new Database(":memory:");
+    sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
     db.exec(MEMORY_MIGRATIONS);
 
@@ -36,6 +40,7 @@ describe("MEMORY_MIGRATIONS", () => {
 
   it("creates expected indexes on edges", () => {
     const db = new Database(":memory:");
+    sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
     db.exec(MEMORY_MIGRATIONS);
 
@@ -52,6 +57,7 @@ describe("MEMORY_MIGRATIONS", () => {
 
   it("is idempotent (running twice does not throw)", () => {
     const db = new Database(":memory:");
+    sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
     db.exec(MEMORY_MIGRATIONS);
     expect(() => db.exec(MEMORY_MIGRATIONS)).not.toThrow();
@@ -59,6 +65,7 @@ describe("MEMORY_MIGRATIONS", () => {
 
   it("syncs FTS5 on node insert via trigger", () => {
     const db = new Database(":memory:");
+    sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
     db.exec(MEMORY_MIGRATIONS);
 
@@ -75,6 +82,7 @@ describe("MEMORY_MIGRATIONS", () => {
 
   it("syncs FTS5 on node delete via trigger", () => {
     const db = new Database(":memory:");
+    sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
     db.exec(MEMORY_MIGRATIONS);
 
@@ -92,6 +100,7 @@ describe("MEMORY_MIGRATIONS", () => {
 
   it("enforces unique constraint on edges (from_node, to_node, kind)", () => {
     const db = new Database(":memory:");
+    sqliteVec.load(db);
     db.pragma("journal_mode = WAL");
     db.exec(MEMORY_MIGRATIONS);
 

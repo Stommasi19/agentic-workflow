@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import * as sqliteVec from "sqlite-vec";
 
 // ── Node and edge kind enums (for documentation, enforced by CHECK) ──
 
@@ -83,12 +84,19 @@ CREATE TABLE IF NOT EXISTS ingestion_cursors (
   updated_at  TEXT NOT NULL,
   PRIMARY KEY (id, repo)
 );
+
+-- Vector embeddings (requires sqlite-vec extension loaded before exec)
+CREATE VIRTUAL TABLE IF NOT EXISTS node_embeddings USING vec0(
+  node_id TEXT PRIMARY KEY,
+  embedding float[768]
+);
 `;
 
 // ── Factory ──────────────────────────────────────────────────────────
 
 export function createMemoryDatabase(dbPath: string): Database.Database {
   const db = new Database(dbPath);
+  sqliteVec.load(db);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(MEMORY_MIGRATIONS);

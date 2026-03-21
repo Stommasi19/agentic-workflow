@@ -76,6 +76,11 @@ export interface MemoryDbClient {
   // Search
   searchFTS(query: string, repo: string, limit: number): FTSResult[];
 
+  // Embeddings
+  insertEmbedding(nodeId: string, embedding: Float32Array): void;
+  getEmbedding(nodeId: string): Float32Array | undefined;
+  searchKNN(query: Float32Array, limit: number): Array<{ node_id: string; distance: number }>;
+
   // Stats
   getStats(repo: string): MemoryStats;
 
@@ -139,6 +144,20 @@ export function createMemoryDbClient(db: Database.Database): MemoryDbClient {
 
     nodeCount: db.prepare("SELECT COUNT(*) as count FROM nodes WHERE repo = @repo"),
     edgeCount: db.prepare("SELECT COUNT(*) as count FROM edges WHERE repo = @repo"),
+
+    insertEmbedding: db.prepare(
+      "INSERT INTO node_embeddings (node_id, embedding) VALUES (?, ?)"
+    ),
+    getEmbedding: db.prepare(
+      "SELECT embedding FROM node_embeddings WHERE node_id = ?"
+    ),
+    searchKNN: db.prepare(`
+      SELECT node_id, distance
+      FROM node_embeddings
+      WHERE embedding MATCH ?
+      ORDER BY distance
+      LIMIT ?
+    `),
   };
 
   /** Truncate body to MAX_BODY_BYTES (P1 fix). */
@@ -221,6 +240,20 @@ export function createMemoryDbClient(db: Database.Database): MemoryDbClient {
       const nc = stmts.nodeCount.get({ repo }) as { count: number };
       const ec = stmts.edgeCount.get({ repo }) as { count: number };
       return { node_count: nc.count, edge_count: ec.count };
+    },
+
+    insertEmbedding(nodeId, embedding) {
+      stmts.insertEmbedding.run(nodeId, Buffer.from(embedding.buffer));
+    },
+
+    getEmbedding(nodeId) {
+      const row = stmts.getEmbedding.get(nodeId) as { embedding: Buffer } | undefined;
+      if (!row) return undefined;
+      return new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.byteLength / 4);
+    },
+
+    searchKNN(query, limit) {
+      return stmts.searchKNN.all(Buffer.from(query.buffer), limit) as Array<{ node_id: string; distance: number }>;
     },
 
     transaction<T>(fn: () => T): T {

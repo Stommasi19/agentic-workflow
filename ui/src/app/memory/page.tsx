@@ -20,12 +20,11 @@ const SEARCH_MODES = [
 ];
 
 const KIND_OPTIONS = [
-  "fact",
-  "decision",
-  "topic",
-  "git_commit",
-  "file",
   "message",
+  "conversation",
+  "topic",
+  "decision",
+  "artifact",
   "task",
 ];
 

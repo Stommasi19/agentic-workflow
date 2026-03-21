@@ -1,7 +1,7 @@
 import type { MemoryDbClient } from "../../db/memory-client.js";
 import type { EmbeddingService } from "../../ingestion/embedding.js";
 import type { SecretFilter } from "../../ingestion/secret-filter.js";
-import type { NodeKind } from "../../db/memory-schema.js";
+import { NODE_KINDS, type NodeKind } from "../../db/memory-schema.js";
 import { searchMemory } from "../../application/services/search-memory.js";
 import { traverseMemory } from "../../application/services/traverse-memory.js";
 import { assembleContext } from "../../application/services/assemble-context.js";
@@ -47,9 +47,9 @@ export function createMemoryController(
         });
       }
 
-      // Parse comma-separated kinds string into array
+      // Parse comma-separated kinds string into array, validating each against NODE_KINDS
       const kindsArray: NodeKind[] | undefined = kinds
-        ? (kinds.split(",").map((k) => k.trim()).filter(Boolean) as NodeKind[])
+        ? kinds.split(",").map((k) => k.trim()).filter((k): k is NodeKind => (NODE_KINDS as readonly string[]).includes(k))
         : undefined;
 
       const result = await searchMemory(mdb, embedService, {
@@ -122,7 +122,7 @@ export function createMemoryController(
         max_tokens,
       });
       if (!result.ok) return appErr(result.error);
-      // Map service ContextSection (has `relevance`) to schema ContextSection (has `token_estimate`)
+      // Map service ContextSection to schema ContextSection (include both token_estimate and relevance)
       const data: ContextResponse = {
         summary: result.data.summary,
         token_estimate: result.data.token_estimate,
@@ -130,6 +130,7 @@ export function createMemoryController(
           heading: s.heading,
           content: s.content,
           token_estimate: Math.ceil(s.content.length / 4),
+          relevance: s.relevance,
         })),
       };
       return { ok: true, data };
@@ -161,11 +162,21 @@ export function createMemoryController(
     ): Promise<ApiResponse<EdgeResponse>> {
       const { from_node, to_node, kind, note } = req.body;
 
+      // Validate both nodes exist before creating the edge
+      const fromNodeRow = mdb.getNode(from_node);
+      if (!fromNodeRow) {
+        return appErr({ code: "NOT_FOUND", message: `Node ${from_node} not found`, statusHint: 404 });
+      }
+      const toNodeRow = mdb.getNode(to_node);
+      if (!toNodeRow) {
+        return appErr({ code: "NOT_FOUND", message: `Node ${to_node} not found`, statusHint: 404 });
+      }
+
       // Filter secrets from the note field
       const filteredNote = note ? filter.redact(note) : "";
 
       const edge = mdb.insertEdge({
-        repo: (mdb.getNode(from_node)?.repo ?? mdb.getNode(to_node)?.repo) ?? "",
+        repo: fromNodeRow.repo,
         from_node,
         to_node,
         kind,

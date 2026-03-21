@@ -55,6 +55,7 @@ export interface ContextSection {
   heading: string;
   content: string;
   relevance: number;
+  token_estimate: number;
 }
 
 export interface ContextResponse {
@@ -81,11 +82,11 @@ export async function searchMemory(
 }
 
 export async function getMemoryNode(id: string): Promise<NodeResponse> {
-  return get<NodeResponse>(`/memory/nodes/${encodeURIComponent(id)}`);
+  return get<NodeResponse>(`/memory/node/${encodeURIComponent(id)}`);
 }
 
 export async function getMemoryNodeEdges(id: string): Promise<EdgeResponse[]> {
-  return get<EdgeResponse[]>(`/memory/nodes/${encodeURIComponent(id)}/edges`);
+  return get<EdgeResponse[]>(`/memory/node/${encodeURIComponent(id)}/edges`);
 }
 
 export async function traverseMemory(
@@ -104,7 +105,7 @@ export async function traverseMemory(
   if (options?.max_nodes !== undefined) params.set("max_nodes", String(options.max_nodes));
   const qs = params.toString();
   return get<TraverseResponse>(
-    `/memory/nodes/${encodeURIComponent(id)}/traverse${qs ? `?${qs}` : ""}`,
+    `/memory/traverse/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`,
   );
 }
 

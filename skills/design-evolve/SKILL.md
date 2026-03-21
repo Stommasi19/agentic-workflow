@@ -94,7 +94,16 @@ Analyze a new reference site mid-project and selectively merge its design elemen
 Both `.impeccable.md` and `design-tokens.json` must exist. If either is missing:
 > "No existing design language found. Run `/design-analyze` and `/design-language` first to establish a baseline before evolving."
 
-## Step 2: Run Dembrandt on New URL
+## Step 2: Validate URL
+
+Validate that the `<url>` argument starts with `http://` or `https://` and contains only URL-safe characters: letters, digits, `:`, `/`, `.`, `-`, `_`, `~`, `?`, `=`, `%`, `+`, `@`, `,`.
+
+Reject any URL containing characters outside this allowlist.
+
+If validation fails:
+> "Invalid URL: `<url>`. URLs must start with `http://` or `https://` and may only contain URL-safe characters (`a-zA-Z0-9` and `:/.\\-_~?=%+@,`). Offending characters: `<list of disallowed characters found>`."
+
+## Step 3: Run Dembrandt on New URL
 
 ```bash
 npx dembrandt <url> --dtcg --save-output
@@ -102,7 +111,7 @@ npx dembrandt <url> --dtcg --save-output
 
 Read the Dembrandt output.
 
-## Step 3: Present Diff
+## Step 4: Present Diff
 
 Compare new tokens against existing `design-tokens.json`:
 
@@ -126,7 +135,7 @@ UNCHANGED (same in both):
   typography.body.fontSize: 1rem
 ```
 
-## Step 4: Ask What to Adopt
+## Step 5: Ask What to Adopt
 
 For each category (new tokens, different values), ask via AskUserQuestion:
 > "Which elements would you like to adopt from <url>?
@@ -134,7 +143,7 @@ For each category (new tokens, different values), ask via AskUserQuestion:
 > - **Adapt**: use the new value as inspiration but modify
 > - **Ignore**: keep current value unchanged"
 
-## Step 5: Update Design Files
+## Step 6: Update Design Files
 
 Apply the user's choices:
 1. Update `design-tokens.json` with adopted/adapted tokens
@@ -142,7 +151,7 @@ Apply the user's choices:
    - Add to references list if adopted
    - Note any style shifts in relevant sections
 
-## Step 6: Report
+## Step 7: Report
 
 ```
 Design Language Updated

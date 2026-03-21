@@ -101,10 +101,12 @@ If no URLs provided:
 
 ## Step 2: Validate URLs
 
-Validate that each argument is a URL (starts with `http://` or `https://`). Reject arguments that don't match a URL pattern or contain shell metacharacters (`;`, `&`, `|`, `` ` ``, `$`, `(`, `)`).
+Validate that each URL starts with `http://` or `https://` and contains only URL-safe characters: letters, digits, `:`, `/`, `.`, `-`, `_`, `~`, `?`, `=`, `%`, `+`, `@`, `,`.
+
+Reject any URL containing characters outside this allowlist.
 
 If any argument fails validation:
-> "Invalid URL: `<argument>`. URLs must start with `http://` or `https://` and must not contain shell metacharacters."
+> "Invalid URL: `<argument>`. URLs must start with `http://` or `https://` and may only contain URL-safe characters (`a-zA-Z0-9` and `:/.\\-_~?=%+@,`). Offending characters: `<list of disallowed characters found>`."
 
 ## Step 3: Run Dembrandt on Each URL
 

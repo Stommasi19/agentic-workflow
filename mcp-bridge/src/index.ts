@@ -76,6 +76,12 @@ async function main() {
   await server.listen({ port: PORT, host: HOST });
 
   console.log(`Bridge server running at http://${HOST}:${PORT}`);
+
+  // Pre-warm the embedding model in the background so the first /memory/search
+  // or /memory/ingest request is not blocked by multi-second model loading.
+  embedService.warmUp().catch((err) => {
+    console.warn("Embedding model pre-warm failed (will retry on first request):", err);
+  });
   console.log(`SSE stream available at http://${HOST}:${PORT}/events`);
   console.log(`MCP server available via: node dist/mcp.js`);
 

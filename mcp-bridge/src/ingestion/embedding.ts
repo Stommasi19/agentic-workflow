@@ -25,6 +25,8 @@ export interface EmbeddingService {
   embedBatch(texts: string[]): Promise<AppResult<Float32Array[]>>;
   isReady(): boolean;
   isDegraded(): boolean;
+  /** Trigger lazy model loading at startup so the first real request is not delayed. */
+  warmUp(): Promise<void>;
 }
 
 // ── Default nomic embed function (lazy-loaded) ───────────────
@@ -34,6 +36,9 @@ async function createNomicEmbedFn(): Promise<EmbedFn> {
   const extractor = await pipeline(
     "feature-extraction",
     "nomic-ai/nomic-embed-text-v1.5",
+    // "q8" is a valid quantization dtype supported at runtime but absent from
+    // HuggingFace Transformers' published TypeScript type definitions. The cast
+    // to `never` silences the type error without widening to `any`.
     { dtype: "q8" as never },
   );
 
@@ -43,7 +48,12 @@ async function createNomicEmbedFn(): Promise<EmbedFn> {
   // The embedFn itself does NOT add any prefix.
   return async (texts: string[]) => {
     const output = await extractor(texts, { pooling: "mean", normalize: true });
-    const flat = output.data as Float32Array;
+    if (!(output.data instanceof Float32Array)) {
+      throw new Error(
+        `Unexpected embedding output type: expected Float32Array, got ${Object.prototype.toString.call(output.data)}`,
+      );
+    }
+    const flat = output.data;
     const dim = EMBEDDING_DIMS;
     return texts.map((_, i) => flat.slice(i * dim, (i + 1) * dim));
   };
@@ -123,5 +133,11 @@ export function createEmbeddingService(options: EmbeddingServiceOptions = {}): E
 
     isReady: () => ready,
     isDegraded: () => degraded,
+
+    async warmUp() {
+      // Discard the result — the goal is to trigger lazy model loading so that
+      // the first real request does not incur multi-second model-download latency.
+      await ensureReady();
+    },
   };
 }

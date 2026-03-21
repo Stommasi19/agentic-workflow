@@ -96,6 +96,12 @@ export function createMemoryRoutes(
         schema: CreateNodeSchema,
         handler: handlers.createNode,
       }),
+    // Each defineRoute() call returns RouteEntry<TSchema> with a distinct TSchema,
+    // so the array literal has a union element type that TypeScript cannot
+    // automatically widen to the base RouteEntry<RouteSchema> required by
+    // ControllerDefinition.routes. The cast is safe because server.ts consumes
+    // routes through the erased RouteEntry interface and re-validates inputs via
+    // Zod at runtime before calling each handler.
     ] as RouteEntry[],
   };
 }

@@ -1,21 +1,15 @@
 // mcp-bridge/tests/infer-topics.test.ts
 import { describe, it, expect, beforeEach } from "vitest";
-import Database from "better-sqlite3";
-import * as sqliteVec from "sqlite-vec";
-import { createMemoryDbClient, type MemoryDbClient } from "../src/db/memory-client.js";
-import { MEMORY_MIGRATIONS } from "../src/db/memory-schema.js";
+import { type MemoryDbClient } from "../src/db/memory-client.js";
 import { createEmbeddingService, type EmbeddingService, EMBEDDING_DIMS } from "../src/ingestion/embedding.js";
 import { inferTopics } from "../src/application/services/infer-topics.js";
+import { createTestMemoryDb } from "./helpers.js";
 
 let mdb: MemoryDbClient;
 let embedService: EmbeddingService;
 
 beforeEach(() => {
-  const raw = new Database(":memory:");
-  sqliteVec.load(raw);
-  raw.pragma("journal_mode = WAL");
-  raw.exec(MEMORY_MIGRATIONS);
-  mdb = createMemoryDbClient(raw);
+  ({ mdb } = createTestMemoryDb());
 
   // Minimal mock — isReady() returns true, embed() won't be called by inferTopics
   embedService = createEmbeddingService({
@@ -171,6 +165,17 @@ describe("inferTopics", () => {
     // With threshold 0, everything in 1 cluster should create 1 topic with 2 edges
     expect(result.data.topics_created).toBe(1);
     expect(result.data.edges_created).toBe(2);
+  });
+
+  it("handles entries with identical embeddings gracefully", async () => {
+    // Insert multiple conversations with identical embeddings — triggers totalWeight=0 early stop
+    for (let i = 0; i < 5; i++) {
+      const node = mdb.insertNode({ repo: "r", kind: "conversation", title: `Same conv ${i}`, body: "identical", meta: "{}", source_id: `same-${i}`, source_type: "test" });
+      mdb.insertEmbedding(node.id, new Float32Array(EMBEDDING_DIMS).fill(0.5));
+    }
+
+    const result = await inferTopics(mdb, embedService, { repo: "r", k: 3, threshold: 0.0 });
+    expect(result.ok).toBe(true);
   });
 
   it("uses the topic node title from the most-central cluster member", async () => {

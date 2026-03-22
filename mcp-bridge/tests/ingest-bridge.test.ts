@@ -1,16 +1,13 @@
 // mcp-bridge/tests/ingest-bridge.test.ts
 import { describe, it, expect, beforeEach } from "vitest";
-import Database from "better-sqlite3";
-import * as sqliteVec from "sqlite-vec";
-import { createMemoryDbClient, type MemoryDbClient } from "../src/db/memory-client.js";
-import { createDbClient, type DbClient } from "../src/db/client.js";
-import { MEMORY_MIGRATIONS } from "../src/db/memory-schema.js";
-import { MIGRATIONS } from "../src/db/schema.js";
+import { type MemoryDbClient } from "../src/db/memory-client.js";
+import { type DbClient } from "../src/db/client.js";
 import { createSecretFilter } from "../src/ingestion/secret-filter.js";
 import { ingestBridgeMessage, ingestBridgeTask, backfillBridge, normalizeRepoSlug } from "../src/application/services/ingest-bridge.js";
 import { sendContext } from "../src/application/services/send-context.js";
 import { assignTask } from "../src/application/services/assign-task.js";
 import { randomUUID } from "node:crypto";
+import { createTestBridgeDb, createTestMemoryDb } from "./helpers.js";
 
 let mdb: MemoryDbClient;
 let bridgeDb: DbClient;
@@ -18,16 +15,8 @@ const filter = createSecretFilter();
 const repo = "test-repo";
 
 beforeEach(() => {
-  const rawMem = new Database(":memory:");
-  sqliteVec.load(rawMem);
-  rawMem.pragma("journal_mode = WAL");
-  rawMem.exec(MEMORY_MIGRATIONS);
-  mdb = createMemoryDbClient(rawMem);
-
-  const rawBridge = new Database(":memory:");
-  rawBridge.pragma("journal_mode = WAL");
-  rawBridge.exec(MIGRATIONS);
-  bridgeDb = createDbClient(rawBridge);
+  ({ mdb } = createTestMemoryDb());
+  ({ db: bridgeDb } = createTestBridgeDb());
 });
 
 describe("ingestBridgeMessage", () => {
@@ -107,6 +96,25 @@ describe("ingestBridgeTask", () => {
     const edges = mdb.getEdgesFrom(convNode!.id);
     expect(edges.some((e) => e.kind === "spawned")).toBe(true);
   });
+
+  it("is idempotent — ingesting same task twice returns existing node", () => {
+    const conv = randomUUID();
+    const taskResult = assignTask(bridgeDb, {
+      conversation: conv,
+      domain: "frontend",
+      summary: "Fix UI",
+      details: "Button broken",
+      assigned_to: "agent",
+    });
+    if (!taskResult.ok) return;
+
+    ingestBridgeTask(mdb, filter, repo, taskResult.data);
+    const result2 = ingestBridgeTask(mdb, filter, repo, taskResult.data);
+
+    expect(result2.ok).toBe(true);
+    const allTasks = mdb.getNodesByRepoAndKind(repo, "task");
+    expect(allTasks.filter((n) => n.source_id === taskResult.data.id)).toHaveLength(1);
+  });
 });
 
 describe("backfillBridge", () => {
@@ -122,6 +130,22 @@ describe("backfillBridge", () => {
 
     const cursor = mdb.getCursor("bridge-backfill", repo);
     expect(cursor).toBeDefined();
+  });
+
+  it("ingests tasks from backfill", async () => {
+    const conv = randomUUID();
+    assignTask(bridgeDb, {
+      conversation: conv,
+      domain: "backend",
+      summary: "Backfill task",
+      details: "Task details",
+      assigned_to: "agent",
+    });
+
+    const result = await backfillBridge(mdb, bridgeDb, filter, repo);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.tasks_ingested).toBe(1);
   });
 });
 

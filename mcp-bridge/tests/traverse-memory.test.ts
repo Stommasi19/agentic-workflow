@@ -1,19 +1,13 @@
 // mcp-bridge/tests/traverse-memory.test.ts
 import { describe, it, expect, beforeEach } from "vitest";
-import Database from "better-sqlite3";
-import * as sqliteVec from "sqlite-vec";
-import { createMemoryDbClient, type MemoryDbClient } from "../src/db/memory-client.js";
-import { MEMORY_MIGRATIONS } from "../src/db/memory-schema.js";
+import { type MemoryDbClient } from "../src/db/memory-client.js";
 import { traverseMemory } from "../src/application/services/traverse-memory.js";
+import { createTestMemoryDb } from "./helpers.js";
 
 let mdb: MemoryDbClient;
 
 beforeEach(() => {
-  const raw = new Database(":memory:");
-  sqliteVec.load(raw);
-  raw.pragma("journal_mode = WAL");
-  raw.exec(MEMORY_MIGRATIONS);
-  mdb = createMemoryDbClient(raw);
+  ({ mdb } = createTestMemoryDb());
 });
 
 /** Helper to create a simple chain: A → B → C */
@@ -103,4 +97,12 @@ describe("traverseMemory", () => {
     expect(result.data.nodes).toHaveLength(2);
     expect(result.data.edges).toHaveLength(1);
   });
+
+  it("returns NOT_FOUND error when node_id does not exist", () => {
+    const result = traverseMemory(mdb, { node_id: "nonexistent-uuid" });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("NOT_FOUND");
+  });
+
 });

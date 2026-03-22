@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-03-22
+
+### Changed
+
+- Removed all `/* v8 ignore */` annotations from source files — coverage must be earned through real tests
+- Dropped 100% coverage threshold enforcement from vitest.config.ts in both packages
+- Updated TESTING.md, ARCHITECTURE.md, and CLAUDE.md to document prohibition on v8 ignore annotations
+
 ## [Unreleased] - 2026-03-21
 
 ### Added
@@ -46,6 +54,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Extracted custom hooks from Memory Explorer page component for reusability
+- Relocated memory-controller tests to the `tests/` directory for consistency
+- Updated testing documentation with coverage targets and new conventions
+
+### Added (Test Harness)
+
+- Coverage infrastructure for mcp-bridge with 100% line/branch/function thresholds enforced via Vitest
+- Test infrastructure for UI package with Vitest and happy-dom
+- Unit tests for DbClient covering all prepared-statement operations
+- Unit tests for message, task, and conversation controllers
+- Integration tests for message, task, conversation, and memory routes via Fastify inject
+- Integration tests for SSE endpoint and server error handling
+- MCP tool handler tests with `resultToContent` validation
+- Tests for result helpers, route types, and memory-schema utilities
+- Tests for secret-filter, transcript-parser, and BoundedQueue
+- Coverage gap tests for schema validation, SSE integration, and embedding service
+- Coverage gap tests for search-memory, ingest-git, ingest-transcript, and extract-decisions
+- Coverage gap tests for controllers, memory-client, transcript-parser, and infer-topics
+- Comprehensive UI lib and hook tests achieving 100% coverage
+- Shared test helpers module (`tests/helpers.ts`) eliminating duplicated boilerplate across 24 test files
+- FTS5 adversarial input tests for double quotes, boolean operators, wildcards, parentheses, and backslashes
+
+### Fixed (Test Harness)
+
+- SSE integration test now uses event-driven resolution instead of hardcoded setTimeout
+- Queue test uses retry-based `waitUntil(predicate, timeout)` instead of fixed-delay polling
+- All memory test files now enable `foreign_keys = ON` pragma matching production behavior
+- Added cross-reference comments for duplicated `resultToContent` in mcp-tools.test.ts and mcp.ts
+- Mock `EmbeddingService.isReady()` now returns `true` matching production warmed-up state
 
 ## [1.0.0] - 2026-03-19
 

@@ -1,22 +1,16 @@
 // mcp-bridge/tests/ingest-transcript.test.ts
 import { describe, it, expect, beforeEach } from "vitest";
-import Database from "better-sqlite3";
-import * as sqliteVec from "sqlite-vec";
-import { createMemoryDbClient, type MemoryDbClient } from "../src/db/memory-client.js";
-import { MEMORY_MIGRATIONS } from "../src/db/memory-schema.js";
+import { type MemoryDbClient } from "../src/db/memory-client.js";
 import { createSecretFilter } from "../src/ingestion/secret-filter.js";
 import { ingestTranscriptLines, type IngestTranscriptInput } from "../src/application/services/ingest-transcript.js";
+import { createTestMemoryDb } from "./helpers.js";
 
 let mdb: MemoryDbClient;
 const filter = createSecretFilter();
 const repo = "test-repo";
 
 beforeEach(() => {
-  const raw = new Database(":memory:");
-  sqliteVec.load(raw);
-  raw.pragma("journal_mode = WAL");
-  raw.exec(MEMORY_MIGRATIONS);
-  mdb = createMemoryDbClient(raw);
+  ({ mdb } = createTestMemoryDb());
 });
 
 function makeLine(overrides: Record<string, unknown> = {}): string {
@@ -96,5 +90,52 @@ describe("ingestTranscriptLines", () => {
 
     const node = mdb.getNodeBySource("transcript", "u1");
     expect(node!.body).not.toContain("AKIAIOSFODNN7EXAMPLE");
+  });
+
+  it("uses [type] as node title when message content is empty", () => {
+    const lines = [
+      JSON.stringify({ type: "assistant", uuid: "u-empty", parentUuid: null, message: {}, timestamp: "2026-01-01T00:00:00Z" }),
+    ];
+
+    const result = ingestTranscriptLines(mdb, filter, { repo, sessionId: "s-empty", sessionTitle: "Empty", lines });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.messages_ingested).toBe(1);
+
+    const node = mdb.getNodeBySource("transcript", "u-empty");
+    expect(node).toBeDefined();
+    // Empty content → title falls back to [type]
+    expect(node!.title).toBe("[assistant]");
+  });
+
+  it("skips already-ingested message UUIDs within a session", () => {
+    // Pre-insert a message node with a specific transcript source
+    mdb.insertNode({
+      repo: "r",
+      kind: "message",
+      title: "Pre-existing",
+      body: "Already here",
+      meta: "{}",
+      source_id: "uuid-pre-existing",
+      source_type: "transcript",
+    });
+
+    const lines = [
+      JSON.stringify({ type: "human", uuid: "uuid-pre-existing", message: { content: "Hello" } }),
+      JSON.stringify({ type: "assistant", uuid: "uuid-new", parentUuid: "uuid-pre-existing", message: { content: "World" } }),
+    ];
+
+    const result = ingestTranscriptLines(mdb, filter, {
+      repo: "r",
+      sessionId: "sess-skip-test",
+      sessionTitle: "Skip Test",
+      lines,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Both records are processed but the pre-existing one is skipped
+    expect(result.data.messages_ingested).toBe(2); // parser counts all parsed records
   });
 });

@@ -459,6 +459,51 @@ else
   echo "To build later, run: BUILD_CSHARP=1 ./setup.sh"
 fi
 
+echo "=== Building Serena Swift extension image (opt-in) ==="
+# Auto-detect Swift projects or honour BUILD_SWIFT=1 env var override
+# The Swift image adds socat + a sourcekit-lsp shim; sourcekit-lsp itself runs on the host.
+_build_swift=0
+if [ "${BUILD_SWIFT:-0}" = "1" ]; then
+  _build_swift=1
+elif find "$(dirname "$0")" -maxdepth 4 -name "*.swift" -print -quit 2>/dev/null | grep -q .; then
+  _build_swift=1
+fi
+
+if [ "$_build_swift" = "1" ]; then
+  # Ensure socat is available on the host — required for the host-side LSP bridge process
+  if ! command -v socat &>/dev/null; then
+    if command -v brew &>/dev/null; then
+      echo "Installing socat (required for Swift LSP bridge)..."
+      brew install socat
+    else
+      echo "WARN: 'socat' not found and Homebrew is not available."
+      echo "      Install socat manually, then re-run setup.sh:"
+      echo "        brew install socat   (macOS with Homebrew)"
+      echo "        apt-get install socat (Debian/Ubuntu)"
+      echo "      Skipping Swift image build."
+      _build_swift=0
+    fi
+  fi
+  if [ "$_build_swift" = "1" ]; then
+    if ! docker image inspect "serena-local:${SERENA_VERSION}-swift" &>/dev/null; then
+      echo "Building serena-local:${SERENA_VERSION}-swift (socat + sourcekit-lsp shim)..."
+      docker build \
+        --progress plain \
+        --build-arg LOCAL_TAG="${SERENA_VERSION}" \
+        -t "serena-local:${SERENA_VERSION}-swift" \
+        -f "$(dirname "$0")/Dockerfile.serena-swift" \
+        "$(dirname "$0")" \
+        || { echo "FATAL: Swift image build failed."; exit 1; }
+      echo "Built serena-local:${SERENA_VERSION}-swift"
+    else
+      echo "serena-local:${SERENA_VERSION}-swift already exists, skipping"
+    fi
+  fi
+else
+  echo "=== Skipping Swift Serena image (no *.swift found) ==="
+  echo "To build later, run: BUILD_SWIFT=1 ./setup.sh"
+fi
+
 echo "=== Installing serena-docker wrapper ==="
 mkdir -p "$HOME/.local/bin"
 cp "$(dirname "$0")/scripts/serena-docker" "$HOME/.local/bin/serena-docker"

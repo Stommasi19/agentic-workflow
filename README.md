@@ -81,7 +81,8 @@ Invocable via `/bootstrap` in any repo. Orchestrates documentation generation:
 
 - Detects which of 17 Pivot-pattern docs exist (BUSINESS_PLAN, ARCHITECTURE, ERD, etc.)
 - Generates missing docs adapted to the target repo's tech stack
-- Creates a CLAUDE.md if none exists
+- Creates a trimmed CLAUDE.md (navigation doc only, under 80 lines) if none exists
+- Creates a `.claude/rules/` directory with glob-scoped rule files inferred from the repo's structure
 - Handles bare repos, partially documented repos, and well-documented repos
 
 ### 4. MCP Bridge (Claude Code / Codex)
@@ -223,8 +224,16 @@ Test coverage spans unit tests (controllers, services, DB client, schemas, utili
 ```
 agentic-workflow/
 ├── .claude/
-│   ├── rules/mcp-servers.md   # MCP server usage rules for Claude Code
-│   └── settings.json          # Claude Code project settings
+│   └── rules/                 # Glob-scoped domain rules (9 files, auto-loaded by Claude Code)
+│       ├── bridge-services.md # AppResult, EventBus, MCP tools, memory services
+│       ├── bridge-transport.md # Typed router, controllers, Zod schemas
+│       ├── database.md        # SQLite schema, DbClient, MemoryDbClient
+│       ├── design.md          # Design pipeline, tokens, .impeccable.md
+│       ├── ingestion.md       # Queues, embeddings, secret filter, Claude Code parser
+│       ├── mcp-servers.md     # MCP server usage rules (Serena, bridge, context7, etc.)
+│       ├── skills.md          # Skill structure, preamble, pipeline, bootstrap
+│       ├── testing.md         # Test patterns, helpers, coverage policy
+│       └── ui.md              # Next.js App Router, hooks, React Flow graph
 ├── .serena/
 │   └── project.yml            # Serena LSP per-repo config (TypeScript)
 ├── skills/                    # Claude Code custom skills

@@ -1,6 +1,6 @@
 # CLAUDE.md — agentic-workflow
 
-> Portable Claude Code workflow toolkit: 21 custom skills, config archive, repo bootstrapper, a bidirectional MCP bridge for multi-agent communication, and a conversation memory system with graph-based retrieval.
+> Portable Claude Code workflow toolkit: 22 custom skills, config archive, repo bootstrapper, a bidirectional MCP bridge for multi-agent communication, and a conversation memory system with graph-based retrieval.
 
 Domain-specific rules are in `.claude/rules/` — they load automatically when working on matching files.
 
@@ -35,7 +35,7 @@ Domain-specific rules are in `.claude/rules/` — they load automatically when w
 
 ```
 agentic-workflow/
-├── skills/        # 21 Claude Code custom skills (symlinked to ~/.claude/skills/)
+├── skills/        # 22 Claude Code custom skills (symlinked to ~/.claude/skills/)
 ├── bootstrap/     # /bootstrap skill — repo documentation generator
 ├── config/        # Settings, MCP config, and statusline script
 ├── mcp-bridge/    # MCP bridge + REST API (Fastify, SQLite, sqlite-vec)
@@ -46,6 +46,7 @@ agentic-workflow/
 ├── scripts/       # Utility scripts (serena-docker wrapper)
 ├── start.sh       # Start bridge + UI together
 └── setup.sh       # One-command setup: skills, statusline, config, bridge, Serena, UI
+```
 ```
 
 ## Commands

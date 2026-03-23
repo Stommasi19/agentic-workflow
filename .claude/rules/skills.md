@@ -36,15 +36,15 @@ Every SKILL.md embeds the shared preamble between these markers:
 
 ```markdown
 <!-- === PREAMBLE START === -->
-...21-skill table + output directory line...
+...22-skill table + output directory line...
 ...Bootstrap Check bash script...
 <!-- === PREAMBLE END === -->
 ```
 
-When updating `skills/_preamble.md`, you **must** propagate the change to all 21 SKILL.md files that embed it. Use `Grep` to find all files: search for `=== PREAMBLE START ===`.
+When updating `skills/_preamble.md`, you **must** propagate the change to all 22 SKILL.md files that embed it. Use `Grep` to find all files: search for `=== PREAMBLE START ===`.
 
 The preamble verifies:
-1. All 21 skills are symlinked to `~/.claude/skills/`
+1. All 22 skills are symlinked to `~/.claude/skills/`
 2. The MCP bridge is built (`dist/mcp.js` exists)
 3. The `.claude/rules/` directory exists in the project root
 4. The repo-slug output directory `~/.agentic-workflow/$REPO_SLUG/` is created
@@ -77,6 +77,7 @@ Result: `org-repo` (e.g., `myorg-myrepo`). All output paths use `~/.agentic-work
 | Retrospectives | `/weeklyRetro` | `retros/` |
 | Planning | `/officeHours`, `/productReview`, `/archReview` | `plans/` (`officeHours` writes to `plans/<feature>/`) |
 | Design | `/design-mockup`, `/design-verify` | `design/` |
+| Verification | `/verify-app` | `verification/` |
 
 Skills that output files always write to `~/.agentic-workflow/$REPO_SLUG/<domain>/` — never to the project directory.
 
@@ -90,6 +91,7 @@ officeHours → productReview / archReview
                                         ^
                                design-evolve (anytime)
     → review → rootCause → bugHunt → shipRelease → syncDocs → weeklyRetro
+    verify-app (anytime — standalone verification of running app)
 ```
 
 ## Bootstrap Skill
@@ -107,7 +109,7 @@ When writing the bootstrap CLAUDE.md template, do not include Skills tables or K
 2. Copy the full preamble block from `skills/_preamble.md` immediately after the frontmatter `---`
 3. Write the skill's steps after the preamble
 4. Add the skill name to `setup.sh`'s `MANAGED_SKILLS` array
-5. Add a row to the skills table in `_preamble.md` and propagate to all 21 existing SKILL.md files
+5. Add a row to the skills table in `_preamble.md` and propagate to all 22 existing SKILL.md files
 6. Update the skill count in the CLAUDE.md tagline (line 3)
 
 ## Symlink Installation

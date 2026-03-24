@@ -2,6 +2,75 @@
 
 A portable Claude Code workflow toolkit: custom skills, configuration archive, repo bootstrapper, and a bidirectional MCP bridge for multi-agent communication.
 
+## Workflow: Product Vision → Ship
+
+This toolkit supports an end-to-end product workflow where **AI sessions replace documents** — the goal is GitHub issues as the single source of truth, not a proliferating collection of local markdown files.
+
+### Stage 1 — Ideation
+
+```
+/withInterview
+```
+
+**Human in the loop:** You're in the hot seat. The agent interviews you — asking questions, challenging assumptions, surfacing contradictions — while you answer in your own words. The output is a coherent problem statement and set of goals distilled from your raw thinking, not polished prose you had to write yourself.
+
+### Stage 2 — Spec & Design Doc
+
+```
+/officeHours [feature or problem]
+```
+
+**Human in the loop:** This is a back-and-forth collaboration. The agent proposes requirements, you push back. It drafts the technical design, you redirect priorities and flag constraints it doesn't know about. Think of it as a YC office hours session — you leave with decisions made, not just options listed. It also brings structure to multi-team collaboration: product and engineering can align on vision, scope, and trade-offs in a shared session before anyone writes a line of code. The output lands in `~/.agentic-workflow/<repo>/plans/`:
+
+- `requirements.md` — EARS-format requirements
+- `design.md` — technical design with trade-offs
+- `TASKS.md` — atomic task breakdown
+
+Optionally pressure-test the outputs before moving on:
+
+```
+/productReview    # Founder/product lens: is this the right thing to build?
+/archReview       # Engineering lens: is this the right way to build it?
+```
+
+### Stage 3 — Design System & Mockups
+
+```
+/design-analyze   # Extract design tokens from reference sites (web or iOS)
+/design-language  # Define brand personality and aesthetic direction
+/design-mockup    # Generate HTML or SwiftUI mockup from design language
+/design-refine    # Agents self-critique and iterate against the design language
+```
+
+**Human in the loop:** After the initial mockup is generated, agents enter a self-critique loop — evaluating whether the mockup faithfully reflects the established design language, identifying deviations, and refining autonomously. You step in at natural breakpoints: reviewing the current state, directing emphasis ("make the data table the focus, not the sidebar"), and deciding when the visual spec is ready to lock. You're the final arbiter of "good enough to build from," not a participant in every pixel decision.
+
+These produce `design-tokens.json`, `.impeccable.md`, and a `mockup.html` (or SwiftUI file) that serve as the visual specification.
+
+### Stage 4 — Engineering Roadmap (GitHub Issues)
+
+Create a **multi-phase issue hierarchy** directly from the officeHours output:
+
+1. **Epic issue** — paste the product vision, `requirements.md`, and the `design.md` summary
+2. **Task issues** — one per entry in `TASKS.md`, each referencing the epic and embedding relevant context
+3. **Attach mockups** — link or embed the mockup screenshot so the visual spec lives in the issue
+
+The officeHours MD files are **ephemeral** — once context is in GitHub issues, delete or ignore them. The issues become the canonical source of truth: product vision + design language reference + mockups all in one place, no local file sprawl.
+
+### Stage 5 — Ship
+
+```
+/review           # Multi-agent PR code review
+/postReview       # Publish findings to GitHub as batched comments
+/addressReview    # Implement fixes with parallel agents
+/shipRelease      # Sync, test, push, open PR
+/syncDocs         # Post-ship doc updater
+/weeklyRetro      # Retrospective with shipping streaks
+```
+
+**Human in the loop:** Shipping is a loop, not a one-shot. The review agents surface issues and publish them to GitHub. You decide what to address before merge and what can be tracked as follow-ups. `/addressReview` implements the fixes in parallel; you review the diff. `/shipRelease` runs the gate checks — you approve the PR. The retro closes the loop: what shipped, what slipped, what to carry into next week.
+
+---
+
 ## Prerequisites
 
 - Node.js >= 20

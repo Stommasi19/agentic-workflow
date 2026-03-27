@@ -1,6 +1,6 @@
 # CLAUDE.md — agentic-workflow
 
-> Portable Claude Code workflow toolkit: 34 custom skills, config archive, repo bootstrapper, a bidirectional MCP bridge for multi-agent communication, and a conversation memory system with graph-based retrieval.
+> Portable Claude Code workflow toolkit: 34 custom skills, config archive, repo bootstrapper, a bidirectional MCP bridge for multi-agent communication, a conversation memory system with graph-based retrieval, and token-efficiency tools (rtk + headroom).
 
 Domain-specific rules are in `.claude/rules/` — they load automatically when working on matching files.
 
@@ -61,7 +61,7 @@ cd ui && npm test               # Vitest (hooks + lib tests)
 cd ui && npm run test:coverage  # Run with 100% coverage enforcement
 
 # Setup (from repo root)
-./setup.sh             # Symlink skills, copy config, install statusline, install deps, build bridge, build Serena Docker image, register MCP servers, create output dir
+./setup.sh             # Symlink skills, copy config, install statusline, install hooks (safety + rtk), build bridge, build Serena Docker image, register MCP servers (incl. headroom), create output dir
 ./start.sh             # Start bridge (:3100) + UI (:3000) together
 ```
 

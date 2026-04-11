@@ -23,6 +23,25 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
+# Check for native build tools (required by better-sqlite3 when no prebuilt binary exists)
+if ! command -v make &>/dev/null || ! command -v g++ &>/dev/null; then
+  echo ""
+  echo "╔══════════════════════════════════════════════════════════════╗"
+  echo "║                  MISSING BUILD TOOLS                        ║"
+  echo "║                                                              ║"
+  echo "║  make and g++ are required to compile native Node addons    ║"
+  echo "║  (better-sqlite3, sqlite-vec). Prebuilt binaries may not    ║"
+  echo "║  be available for your Node version.                        ║"
+  echo "║                                                              ║"
+  echo "║  Install build tools, then re-run setup:                    ║"
+  echo "║    xcode-select --install          (macOS)                  ║"
+  echo "║    sudo apt-get install build-essential  (Debian/Ubuntu)    ║"
+  echo "║    sudo dnf groupinstall 'Development Tools'  (Fedora)     ║"
+  echo "╚══════════════════════════════════════════════════════════════╝"
+  echo ""
+  exit 1
+fi
+
 # Canonical list of skills managed by this toolkit.
 # Note: skills/_shared/ is intentionally excluded from MANAGED_SKILLS.
 # It is not symlinked directly — each skill accesses it via path traversal
@@ -506,9 +525,22 @@ mkdir -p "$HOME/.local/bin"
 cp "$(dirname "$0")/scripts/serena-docker" "$HOME/.local/bin/serena-docker"
 chmod +x "$HOME/.local/bin/serena-docker"
 
+# Ensure ~/.local/bin is in PATH for the rest of this script and future shells
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$HOME/.local/bin"; then
-  echo "WARN: ~/.local/bin is not in \$PATH. Add to your shell profile:"
-  echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+  export PATH="$HOME/.local/bin:$PATH"
+  LOCAL_BIN_LINE='export PATH="$HOME/.local/bin:$PATH"'
+  _added_local_bin=false
+  for _rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [ -f "$_rc" ] && ! grep -qF '.local/bin' "$_rc" 2>/dev/null; then
+      printf '\n# Added by agentic-workflow setup.sh\n%s\n' "$LOCAL_BIN_LINE" >> "$_rc"
+      _added_local_bin=true
+    fi
+  done
+  if [ "$_added_local_bin" = true ]; then
+    echo "  ~/.local/bin added to PATH (updated shell profile)"
+  else
+    echo "  ~/.local/bin added to PATH (this session only)"
+  fi
 fi
 
 echo "=== Registering Serena MCP (global) ==="
@@ -595,13 +627,15 @@ echo "Installing Impeccable skills..."
 
 IMPECCABLE_VERSION="d6b1a56bc5b79e9375be0f8508b4daa1678fb058"
 IMPECCABLE_DIR="$HOME/.claude/impeccable-cache"
-IMPECCABLE_SKILLS_SRC="$IMPECCABLE_DIR/dist/claude-code"
+IMPECCABLE_SKILLS_SRC="$IMPECCABLE_DIR/.claude/skills"
 
-if [ -d "$IMPECCABLE_SKILLS_SRC" ]; then
+if [ -d "$IMPECCABLE_DIR/.git" ]; then
   echo "  impeccable: cache exists, checking for updates..."
   (cd "$IMPECCABLE_DIR" && git fetch origin && git checkout "$IMPECCABLE_VERSION") || \
     echo "  Warning: Could not update Impeccable cache. Using existing version."
 else
+  # Clean up any partial clone (non-git directory left behind)
+  [ -d "$IMPECCABLE_DIR" ] && rm -rf "$IMPECCABLE_DIR"
   echo "  impeccable: cloning pbakaus/impeccable..."
   git clone https://github.com/pbakaus/impeccable.git "$IMPECCABLE_DIR" 2>&1 && \
     (cd "$IMPECCABLE_DIR" && git checkout "$IMPECCABLE_VERSION") || {
@@ -631,6 +665,8 @@ echo ""
 echo "=== Installing rtk ==="
 if command -v rtk &>/dev/null; then
   echo "  rtk: already installed ($(rtk --version 2>/dev/null || echo 'unknown version'))"
+elif [ -x "$HOME/.local/bin/rtk" ]; then
+  echo "  rtk: already installed at ~/.local/bin/rtk ($("$HOME/.local/bin/rtk" --version 2>/dev/null || echo 'unknown version'))"
 else
   if [ "$(uname)" = "Darwin" ]; then
     brew install rtk || { echo "FATAL: rtk installation failed. Install Homebrew and re-run."; exit 1; }
@@ -638,7 +674,10 @@ else
     curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh \
       || { echo "FATAL: rtk installation failed."; exit 1; }
   fi
-  rtk --version &>/dev/null || { echo "FATAL: rtk not found after installation."; exit 1; }
+  # The installer may place rtk in ~/.local/bin which isn't necessarily in PATH
+  if ! command -v rtk &>/dev/null && ! [ -x "$HOME/.local/bin/rtk" ]; then
+    echo "FATAL: rtk not found after installation."; exit 1
+  fi
   echo "  rtk: installed"
 fi
 
@@ -659,7 +698,8 @@ for _py in python3.13 python3.12 python3.11 python3.10; do
 done
 
 if [ -z "$HEADROOM_PYTHON" ]; then
-  echo "FATAL: Python 3.10+ is required for headroom-ai. Install via: brew install python@3.13"
+  echo "FATAL: Python 3.10+ is required for headroom-ai."
+  echo "  Install via: sudo apt-get install python3 (Debian/Ubuntu) or brew install python@3.13 (macOS)"
   exit 1
 fi
 
@@ -672,6 +712,16 @@ if command -v headroom &>/dev/null; then
 elif [ -x "$HEADROOM_BIN" ]; then
   echo "  headroom: already installed at $HEADROOM_BIN ($("$HEADROOM_BIN" --version 2>/dev/null || echo 'unknown version'))"
 else
+  # On Debian/Ubuntu, pip may not be bundled — try ensurepip bootstrap first
+  if ! "$HEADROOM_PYTHON" -m pip --version &>/dev/null; then
+    "$HEADROOM_PYTHON" -m ensurepip --user 2>/dev/null \
+      || { echo "FATAL: pip is not installed for $HEADROOM_PYTHON and ensurepip is unavailable."
+           echo "  Install pip, then re-run setup:"
+           echo "    sudo apt-get install python3-pip          (Debian/Ubuntu)"
+           echo "    sudo dnf install python3-pip              (Fedora/RHEL)"
+           echo "    brew install python@3.13                  (macOS)"
+           exit 1; }
+  fi
   "$HEADROOM_PYTHON" -m pip install --break-system-packages --user "headroom-ai[all]" 2>/dev/null \
     || "$HEADROOM_PYTHON" -m pip install --user "headroom-ai[all]" \
     || { echo "FATAL: headroom installation failed."; exit 1; }
